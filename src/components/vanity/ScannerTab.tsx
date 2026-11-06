@@ -15,6 +15,7 @@ import {
   MIN_INTERVAL_MS,
   STATUS_LABEL,
   clampInterval,
+  normalizeCheckResult,
   runVerificationQueue,
   type CheckResult,
 } from "@/lib/vanity/check-rules";
@@ -159,7 +160,7 @@ export function ScannerTab({
       },
       check: async (code) => {
         try {
-          return await checkFn({ data: { code } });
+          return normalizeCheckResult(code, await checkFn({ data: { code } }));
         } catch (err) {
           console.error(err);
           return {
@@ -336,7 +337,7 @@ export function ScannerTab({
               >
                 {INTERVAL_OPTIONS_MS.map((ms) => (
                   <option key={ms} value={ms}>
-                    1 a cada {ms / 1000}s{ms === MIN_INTERVAL_MS ? " (mínimo)" : ""}
+                    A cada {ms / 1000}s{ms === MIN_INTERVAL_MS ? " (mín.)" : ""}
                   </option>
                 ))}
               </NativeSelect>

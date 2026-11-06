@@ -26,7 +26,7 @@ import {
   type StatusKey,
 } from "@/lib/vanity/scanner";
 
-import { EmptyState, NOT_FOUND_WARNING, NativeSelect, StatusBadge, WarningBanner } from "./shared";
+import { EmptyState, NOT_FOUND_WARNING, NativeSelect, StatusBadge } from "./shared";
 
 interface Props {
   results: ResultsMap;
@@ -101,9 +101,7 @@ export function ResultsTab({ results, setResults, entries, running }: Props) {
 
   return (
     <div className="space-y-4">
-      <WarningBanner compact />
-
-      <p className="text-sm">
+      <p className="text-sm" data-testid="results-summary">
         <strong className="font-mono">{all.length.toLocaleString("pt-BR")}</strong> códigos
         testados · {counts.e} existentes · {counts.n} não encontrados · {counts.x} erros
       </p>

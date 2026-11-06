@@ -4,6 +4,7 @@ import {
   MIN_INTERVAL_MS,
   classifyHttpStatus,
   isValidCode,
+  normalizeCheckResult,
   normalizeCode,
   parseRetryAfter,
   runVerificationQueue,
@@ -95,7 +96,7 @@ describe("runVerificationQueue", () => {
     expect(check).toHaveBeenCalledTimes(2);
   });
 
-  it("never exceeds the remaining session budget", async () => {
+  it("auto-pauses after the batch size", async () => {
     const check = vi.fn(async (c: string) => res(c, 404));
     const out = await runVerificationQueue({
       ...base,
@@ -133,6 +134,23 @@ it("pauses after 3 consecutive errors", async () => {
   });
   expect(out.reason).toBe("errors");
   expect(check).toHaveBeenCalledTimes(3);
+});
+
+describe("normalizeCheckResult", () => {
+  it("turns a missing server reply into an error, not a crash", () => {
+    expect(normalizeCheckResult("aa", undefined).status).toBe("inconclusive");
+  });
+  it("rejects a reply for a different code", () => {
+    expect(normalizeCheckResult("aa", res("bb", 200)).status).toBe("inconclusive");
+  });
+  it("HTTP 404 always stays not found", () => {
+    const r = normalizeCheckResult("aa", { ...res("aa", 404), status: "exists" });
+    expect(r.status).toBe("not_found");
+  });
+  it("keeps 429 Retry-After", () => {
+    const r = normalizeCheckResult("aa", res("aa", 429, 20));
+    expect(r).toMatchObject({ status: "inconclusive", httpStatus: 429, retryAfterSeconds: 20 });
+  });
 });
 
 describe("toCsv", () => {

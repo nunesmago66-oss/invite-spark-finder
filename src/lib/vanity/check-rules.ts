@@ -47,6 +47,37 @@ export function classifyHttpStatus(httpStatus: number | null): CheckStatus {
   return "inconclusive";
 }
 
+/**
+ * Accepts only a well-formed CheckResult for `code`; anything else (missing,
+ * malformed, wrong code) becomes an error result so the scanner never crashes.
+ */
+export function normalizeCheckResult(code: string, raw: unknown): CheckResult {
+  const r = raw as Partial<CheckResult> | null | undefined;
+  const http = typeof r?.httpStatus === "number" ? r.httpStatus : null;
+  if (!r || typeof r !== "object" || r.code !== code || typeof r.status !== "string") {
+    return {
+      code,
+      status: "inconclusive",
+      httpStatus: null,
+      retryAfterSeconds: null,
+      reason: "Resposta inválida da função de verificação.",
+      checkedAt: new Date().toISOString(),
+    };
+  }
+  return {
+    code,
+    // Re-derive status from the HTTP code so a 404 can never be shown as anything else.
+    status: classifyHttpStatus(http),
+    httpStatus: http,
+    retryAfterSeconds:
+      typeof r.retryAfterSeconds === "number" && Number.isFinite(r.retryAfterSeconds)
+        ? r.retryAfterSeconds
+        : null,
+    reason: typeof r.reason === "string" ? r.reason : "",
+    checkedAt: typeof r.checkedAt === "string" ? r.checkedAt : new Date().toISOString(),
+  };
+}
+
 /** Larger of Retry-After header (seconds) and JSON body retry_after (seconds). */
 export function parseRetryAfter(header: string | null, bodyRetryAfter?: unknown): number | null {
   const values: number[] = [];
