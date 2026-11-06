@@ -304,10 +304,12 @@ export function ScannerTab({
       : `Iniciar varredura (${total})`;
 
   return (
-    <div className="space-y-4">
-      <WarningBanner />
+    <div className={cn("space-y-4", !meaningMode && "lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0")}>
+      <div className={meaningMode ? undefined : "lg:col-span-2"}>
+        <WarningBanner />
+      </div>
 
-      <section className="space-y-3 rounded-lg border bg-card p-3" aria-label="Configuração">
+      <section className="space-y-3 rounded-lg border bg-card p-3 sm:p-4" aria-label="Configuração">
         <h2 className="font-semibold">Configuração</h2>
         <fieldset disabled={running || blocked} className="space-y-3 disabled:opacity-60">
           {!meaningMode && <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Fonte dos candidatos">
@@ -442,7 +444,7 @@ export function ScannerTab({
         </p>
       </section>
 
-      <section className="space-y-3 rounded-lg border bg-card p-3" aria-label="Progresso">
+      <section className="space-y-3 rounded-lg border bg-card p-3 sm:p-4" aria-label="Progresso">
         <div className="flex items-baseline justify-between">
           <h2 className="font-semibold">Progresso</h2>
           <span className="font-mono text-sm" aria-live="polite">
@@ -533,14 +535,14 @@ export function ScannerTab({
       </section>
 
       {recent.length > 0 && (
-        <section className="space-y-2">
+        <section className={cn("space-y-2", !meaningMode && "lg:col-span-2")}>
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">Últimos resultados</h2>
             <Button type="button" variant="ghost" size="sm" onClick={onGoResults}>
               Ver todos
             </Button>
           </div>
-          <ul className="space-y-2">
+          <ul className="space-y-2 sm:grid sm:grid-cols-2 sm:gap-2 sm:space-y-0 xl:grid-cols-3">
             {recent.map((r) => (
               <li key={r.code + r.checkedAt} className="rounded-lg border bg-card p-3">
                 <div className="flex flex-wrap items-center gap-2">
