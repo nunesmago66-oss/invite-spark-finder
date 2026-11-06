@@ -33,3 +33,15 @@ describe("rate-limit origin in compact results", () => {
     expect(toCompact({ ...base, status: "not_found", httpStatus: 404, discordQueried: true })).toHaveLength(3);
   });
 });
+
+describe("failure kinds in compact results", () => {
+  const base = { code: "zq", status: "inconclusive" as const, retryAfterSeconds: null, reason: "", checkedAt: "2026-01-01T00:00:00Z", discordQueried: true };
+  it("records Cloudflare protection, timeout and connection failure separately", () => {
+    expect(toCompact({ ...base, httpStatus: 429, limitLayer: "cloudflare_edge" })[3]).toBe("c");
+    expect(toCompact({ ...base, httpStatus: null, errorKind: "timeout" })[3]).toBe("t");
+    expect(toCompact({ ...base, httpStatus: null, errorKind: "network" })[3]).toBe("f");
+  });
+  it("a 5xx is described as a temporary failure, not a result", () => {
+    expect(describeResult(["x", 503, 1, "d"])).toContain("Falha temporária");
+  });
+});

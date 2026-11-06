@@ -49,11 +49,23 @@ export function countCandidates(len2: boolean, len3: boolean, charset: Charset):
 
 export type StatusKey = "e" | "n" | "x";
 /**
- * Origin of an error/rate-limit result: "d" = Discord was contacted,
+ * Origin of an error/rate-limit result, stored only on error results
+ * (absent on legacy data = origin not recorded):
+ * "d" = Discord's API answered, "c" = Cloudflare protection in front of
+ * Discord answered (429 page), "t" = timeout, "f" = connection failure,
  * "a" = the app answered by itself without contacting Discord.
- * Stored only on error results (absent on legacy data = origin not recorded).
  */
-export type OriginKey = "d" | "a";
+export type OriginKey = "d" | "c" | "t" | "f" | "a";
+export const ORIGIN_KEYS: readonly OriginKey[] = ["d", "c", "t", "f", "a"];
+
+function originOf(r: CheckResult): OriginKey | null {
+  if (r.discordQueried === false) return "a";
+  if (r.discordQueried !== true) return null;
+  if (r.httpStatus === 429 && r.limitLayer === "cloudflare_edge") return "c";
+  if (r.httpStatus === null && r.errorKind === "timeout") return "t";
+  if (r.httpStatus === null && r.errorKind === "network") return "f";
+  return "d";
+}
 /** [status, http status or null, checked-at epoch seconds, origin?] */
 export type CompactResult = [StatusKey, number | null, number, OriginKey?];
 export type ResultsMap = Record<string, CompactResult>;
@@ -64,7 +76,8 @@ const FROM_KEY: Record<StatusKey, CheckStatus> = { e: "exists", n: "not_found", 
 export function toCompact(r: CheckResult): CompactResult {
   const t = Date.parse(r.checkedAt);
   const base: CompactResult = [TO_KEY[r.status], r.httpStatus, Math.floor((Number.isFinite(t) ? t : Date.now()) / 1000)];
-  if (r.status === "inconclusive" && typeof r.discordQueried === "boolean") base.push(r.discordQueried ? "d" : "a");
+  const origin = r.status === "inconclusive" ? originOf(r) : null;
+  if (origin) base.push(origin);
   return base;
 }
 
@@ -77,13 +90,17 @@ export function describeResult(c: CompactResult): string {
     return "Nenhum convite encontrado (HTTP 404). Disponibilidade de vanity URL NÃO confirmada.";
   if (http === 429) {
     if (origin === "d") return "O Discord retornou limite de taxa (HTTP 429).";
+    if (origin === "c") return "A proteção da Cloudflare na frente do Discord bloqueou a consulta (HTTP 429).";
     if (origin === "a")
       return "Bloqueio preventivo do app (limite de taxa recente ainda ativo). O Discord não foi consultado.";
     return "Limite de taxa (HTTP 429) — origem não registrada.";
   }
+  if (http != null && http >= 500) return `Falha temporária do servidor do Discord (HTTP ${http}). Não é um resultado.`;
   if (http != null) return `Resposta inesperada (HTTP ${http}).`;
   if (origin === "a") return "Consulta não enviada pelo app (intervalo mínimo). O Discord não foi consultado.";
-  return "Falha de rede ou tempo esgotado.";
+  if (origin === "t") return "Tempo esgotado ao consultar o Discord. Não é um resultado.";
+  if (origin === "f") return "Falha de conexão ao consultar o Discord. Não é um resultado.";
+  return "Falha de rede ou tempo esgotado. Não é um resultado.";
 }
 
 export const statusLabelOf = (c: CompactResult) => STATUS_LABEL[statusOf(c)];
