@@ -71,3 +71,10 @@ describe("rate-limit origin in saved results", () => {
       .toEqual({ bb: ["n", 404, 100] });
   });
 });
+
+describe("new failure markers load safely", () => {
+  it("keeps c/t/f markers on error results", () => {
+    const data = { aa: ["x", 429, 1, "c"], bb: ["x", null, 2, "t"], cc: ["x", null, 3, "f"] };
+    expect(validateSavedData("dvf:results:v1", data, {})).toEqual({ value: data, recovered: false });
+  });
+});
