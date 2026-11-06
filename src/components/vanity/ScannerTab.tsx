@@ -198,6 +198,7 @@ export function ScannerTab({
     setRunning(true);
     setMessage(null);
 
+    let lastLimit: CheckResult | null = null;
     const outcome = await runVerificationQueue({
       codes: queue,
       batchLimit: config.batch,
@@ -212,8 +213,12 @@ export function ScannerTab({
       },
       check: async (code) => {
         if (!lockRef.current?.held()) throw new Error("Bloqueio entre abas perdido");
+        // Client-side deadline so a stuck request can never freeze the queue.
+        const controller = new AbortController();
+        let timedOut = false;
+        const timer = setTimeout(() => { timedOut = true; controller.abort(); }, CLIENT_TIMEOUT_MS);
         try {
-          return normalizeCheckResult(code, await checkFn({ data: { code } }));
+          return normalizeCheckResult(code, await checkFn({ data: { code }, signal: controller.signal }));
         } catch (err) {
           console.error(err);
           return {
@@ -221,12 +226,19 @@ export function ScannerTab({
             status: "inconclusive",
             httpStatus: null,
             retryAfterSeconds: null,
-            reason: "A função de verificação não respondeu.",
+            reason: timedOut
+              ? "A função de verificação não respondeu a tempo. Não é um resultado."
+              : "A função de verificação não respondeu. Não é um resultado.",
             checkedAt: new Date().toISOString(),
+            discordQueried: null,
+            errorKind: timedOut ? "timeout" : "network",
           };
+        } finally {
+          clearTimeout(timer);
         }
       },
       onResult: (r) => {
+        if (r.httpStatus === 429) lastLimit = r;
         setResults((prev) => ({ ...prev, [r.code]: toCompact(r) }));
         setRecent((list) => [r, ...list].slice(0, 6));
       },
@@ -243,9 +255,13 @@ export function ScannerTab({
         // Never shorten a longer wait that is already active.
         setCooldownUntil((prev) => Math.max(prev, until));
         setNow(Date.now());
+        const limit = lastLimit as CheckResult | null;
+        const scope = limit?.limitScope ? ` Escopo informado: ${limit.limitScope}.` : limit?.limitGlobal ? " Limite global." : "";
         const origin =
           outcome.rateLimitSource === "discord"
-            ? "O Discord retornou limite de taxa (HTTP 429)."
+            ? `O Discord retornou limite de taxa (HTTP 429).${scope}`
+            : outcome.rateLimitSource === "cloudflare_edge"
+            ? "A proteção da Cloudflare na frente do Discord bloqueou a consulta (HTTP 429). Esse bloqueio costuma atingir o endereço de saída compartilhado do servidor do site, não a sua conta."
             : outcome.rateLimitSource === "app_block"
               ? "Bloqueio preventivo do app: um limite de taxa do Discord recebido há pouco ainda está ativo, por isso nenhuma consulta foi enviada ao Discord."
               : "Limite de taxa (HTTP 429) — não foi possível confirmar se veio do Discord ou de um bloqueio preventivo do app.";
