@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeSavedData, encodeSavedData, validateSavedData, reportStorageIssue, getStorageIssues, clearStorageError } from "./persistence";
+import { decodeSavedData, encodeSavedData, validateSavedData, reportStorageIssue, getStorageIssues, clearStorageError, reconcileTiming, readSavedTiming, recoveryKey } from "./persistence";
 import { DEFAULT_SCANNER_CONFIG } from "./scanner";
 import { DEFAULT_CATALOG } from "./catalog";
 import { generateMeaningCandidates } from "./meaning-generator";
@@ -38,5 +38,36 @@ describe("safe persistence", () => {
     reportStorageIssue("test-other", { name: "SecurityError" });
     expect(getStorageIssues().find(i => i.key === "test-other")?.kind).toBe("unavailable");
     clearStorageError("test-quota"); clearStorageError("test-other");
+  });
+});
+
+describe("cooldown reconciliation", () => {
+  const now = 1_000_000_000_000;
+  const store = (data: Record<string, string>) => ({ getItem: (k: string) => data[k] ?? null });
+  it("a recovered zero never shortens an active cooldown", () => {
+    const s = store({ "dvf:cooldown-until": encodeSavedData(now + 60_000), [recoveryKey("dvf:cooldown-until")]: encodeSavedData(0) });
+    expect(readSavedTiming(s, "dvf:cooldown-until", 0, now)).toBe(now + 60_000);
+  });
+  it("the longest valid wait wins across memory, original and recovery", () => {
+    expect(reconcileTiming("dvf:cooldown-until", [now + 10_000, 0], now + 30_000, now)).toBe(now + 30_000);
+    expect(reconcileTiming("dvf:cooldown-until", [now + 90_000, 0], now + 30_000, now)).toBe(now + 90_000);
+  });
+  it("ignores corrupt values instead of blocking forever", () => {
+    expect(reconcileTiming("dvf:cooldown-until", [now + 48 * 3600_000, -5, "x"], 0, now)).toBe(0);
+  });
+  it("keeps the latest last-check time so the 3-second gap is respected", () => {
+    const s = store({ "dvf:last-check-at": encodeSavedData(now - 1000), [recoveryKey("dvf:last-check-at")]: encodeSavedData(0) });
+    expect(readSavedTiming(s, "dvf:last-check-at", 0, now)).toBe(now - 1000);
+  });
+});
+
+describe("rate-limit origin in saved results", () => {
+  it("keeps the origin marker on error results and still loads legacy 3-item records", () => {
+    const data = { aa: ["x", 429, 100, "d"], bb: ["x", 429, 101, "a"], cc: ["x", 429, 102] };
+    expect(validateSavedData("dvf:results:v1", data, {})).toEqual({ value: data, recovered: false });
+  });
+  it("rejects unknown markers and never turns a 404 into anything but not found", () => {
+    expect(validateSavedData("dvf:results:v1", { aa: ["x", 429, 100, "z"], bb: ["e", 404, 100, "d"] }, {}).value)
+      .toEqual({ bb: ["n", 404, 100] });
   });
 });

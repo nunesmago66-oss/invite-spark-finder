@@ -7,6 +7,7 @@ import {
   normalizeCheckResult,
   normalizeCode,
   parseRetryAfter,
+  rateLimitSourceOf,
   runVerificationQueue,
   toCsv,
   type CheckResult,
@@ -156,5 +157,28 @@ describe("normalizeCheckResult", () => {
 describe("toCsv", () => {
   it("escapes commas and quotes", () => {
     expect(toCsv(["a", "b"], [['x,y', 'say "hi"']])).toBe('a,b\r\n"x,y","say ""hi"""');
+  });
+});
+
+describe("429 origin: Discord vs preventive app block", () => {
+  it("a 429 that contacted Discord is labelled as coming from Discord", () => {
+    const r = normalizeCheckResult("aa", { ...res("aa", 429, 5), discordQueried: true });
+    expect(rateLimitSourceOf(r)).toBe("discord");
+  });
+  it("a preventive block (Discord not contacted) is never labelled as a Discord 429", () => {
+    const r = normalizeCheckResult("aa", { ...res("aa", 429, 5), discordQueried: false });
+    expect(rateLimitSourceOf(r)).toBe("app_block");
+  });
+  it("a 429 without origin information stays unknown", () => {
+    expect(rateLimitSourceOf(normalizeCheckResult("aa", res("aa", 429, 5)))).toBe("unknown");
+  });
+  it("still stops at the first 429 and reports its origin", async () => {
+    const check = vi.fn(async (c: string) => ({ ...res(c, 429, 7), discordQueried: false }));
+    const out = await runVerificationQueue({
+      codes: ["aa", "bb", "cc"], batchLimit: 10, intervalMs: 3000,
+      sleep: async () => {}, shouldStop: () => false, check,
+    });
+    expect(out).toMatchObject({ reason: "rate_limited", retryAfterSeconds: 7, rateLimitSource: "app_block", checked: 1 });
+    expect(check).toHaveBeenCalledTimes(1);
   });
 });
