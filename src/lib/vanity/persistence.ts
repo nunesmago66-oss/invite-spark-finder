@@ -11,8 +11,8 @@ const code = (v: unknown): v is string => typeof v === "string" && isValidCode(v
 export function validateSavedData(key: string, input: unknown, initial: unknown): Recovery {
   let value = input;
   if (object(input) && "dvfVersion" in input) {
-    if (input.dvfVersion !== DATA_VERSION || !("data" in input)) return { value: initial, recovered: true };
-    value = input.data;
+    if (input['dvfVersion'] !== DATA_VERSION || !("data" in input)) return { value: initial, recovered: true };
+    value = input['data'];
   }
   let result: unknown = initial;
   if (key.includes("results")) {
@@ -25,31 +25,31 @@ export function validateSavedData(key: string, input: unknown, initial: unknown)
     }
     result = out;
   } else if (key.includes("catalog")) {
-    result = Array.isArray(value) ? value.filter(v => object(v) && code(v.code) && typeof v.meaning === "string" &&
-      CATEGORIES.some(c => c === v.category) && KINDS.some(k => k === v.kind) &&
-      (v.favorite === undefined || typeof v.favorite === "boolean") && (v.custom === undefined || typeof v.custom === "boolean")) : initial;
+    result = Array.isArray(value) ? value.filter(v => object(v) && code(v['code']) && typeof v['meaning'] === "string" &&
+      CATEGORIES.some(c => c === v['category']) && KINDS.some(k => k === v['kind']) &&
+      (v['favorite'] === undefined || typeof v['favorite'] === "boolean") && (v['custom'] === undefined || typeof v['custom'] === "boolean")) : initial;
   } else if (key === "dvf:selected") {
     result = Array.isArray(value) ? [...new Set(value.filter(code))] : initial;
   } else if (key.includes("config") && object(initial)) {
     const v = object(value) ? value : {};
     result = { ...initial,
-      source: v.source === "catalog" || v.source === "generated" ? v.source : initial.source,
-      charset: v.charset === "letters" || v.charset === "alnum" ? v.charset : initial.charset,
-      len2: typeof v.len2 === "boolean" ? v.len2 : initial.len2,
-      len3: typeof v.len3 === "boolean" ? v.len3 : initial.len3,
-      keepAwake: typeof v.keepAwake === "boolean" ? v.keepAwake : initial.keepAwake,
-      intervalMs: number(v.intervalMs) ? Math.max(MIN_INTERVAL_MS, v.intervalMs) : initial.intervalMs,
-      batch: BATCH_OPTIONS.some(b => b === v.batch) ? v.batch : initial.batch,
+      source: v['source'] === "catalog" || v['source'] === "generated" ? v['source'] : initial['source'],
+      charset: v['charset'] === "letters" || v['charset'] === "alnum" ? v['charset'] : initial['charset'],
+      len2: typeof v['len2'] === "boolean" ? v['len2'] : initial['len2'],
+      len3: typeof v['len3'] === "boolean" ? v['len3'] : initial['len3'],
+      keepAwake: typeof v['keepAwake'] === "boolean" ? v['keepAwake'] : initial['keepAwake'],
+      intervalMs: number(v['intervalMs']) ? Math.max(MIN_INTERVAL_MS, v['intervalMs']) : initial['intervalMs'],
+      batch: BATCH_OPTIONS.some(b => b === v['batch']) ? v['batch'] : initial['batch'],
     };
   } else if (key.includes("filters") && object(initial)) {
     const v = object(value) ? value : {};
     result = { ...initial,
-      query: typeof v.query === "string" ? v.query : initial.query,
-      length: ["all", "2", "3"].includes(String(v.length)) ? v.length : initial.length,
-      family: ["all", "palavra", "abreviação", "nome", "fonético"].includes(String(v.family)) ? v.family : initial.family,
-      language: typeof v.language === "string" ? v.language : initial.language,
-      sort: ["relevance", "pronunciation", "aesthetics"].includes(String(v.sort)) ? v.sort : initial.sort,
-      limit: number(v.limit) && Number.isInteger(v.limit) && v.limit > 0 ? v.limit : initial.limit,
+      query: typeof v['query'] === "string" ? v['query'] : initial['query'],
+      length: ["all", "2", "3"].includes(String(v['length'])) ? v['length'] : initial['length'],
+      family: ["all", "palavra", "abreviação", "nome", "fonético"].includes(String(v['family'])) ? v['family'] : initial['family'],
+      language: typeof v['language'] === "string" ? v['language'] : initial['language'],
+      sort: ["relevance", "pronunciation", "aesthetics"].includes(String(v['sort'])) ? v['sort'] : initial['sort'],
+      limit: number(v['limit']) && Number.isInteger(v['limit']) && v['limit'] > 0 ? v['limit'] : initial['limit'],
     };
   } else if (key === "dvf:cooldown-until" || key === "dvf:last-check-at") result = number(value) ? value : initial;
   return { value: result, recovered: JSON.stringify(value) !== JSON.stringify(result) };
