@@ -24,6 +24,22 @@ export interface CheckResult {
   retryAfterSeconds: number | null;
   reason: string;
   checkedAt: string;
+  /**
+   * true = a request was actually sent to Discord; false = the app answered by
+   * itself (preventive block / server throttle) without contacting Discord;
+   * null/undefined = unknown (e.g. the check function did not reply).
+   */
+  discordQueried?: boolean | null;
+}
+
+/** Where a rate-limit stop came from, so a preventive block is never shown as a Discord 429. */
+export type RateLimitSource = "discord" | "app_block" | "unknown";
+
+export function rateLimitSourceOf(r: Pick<CheckResult, "httpStatus" | "discordQueried">): RateLimitSource | null {
+  if (r.httpStatus !== 429) return null;
+  if (r.discordQueried === true) return "discord";
+  if (r.discordQueried === false) return "app_block";
+  return "unknown";
 }
 
 /** Vanity codes: lowercase letters, digits and hyphen, 2–3 characters here. */
@@ -62,8 +78,10 @@ export function normalizeCheckResult(code: string, raw: unknown): CheckResult {
       retryAfterSeconds: null,
       reason: "Resposta inválida da função de verificação.",
       checkedAt: new Date().toISOString(),
+      discordQueried: null,
     };
   }
+  const status = classifyHttpStatus(http);
   return {
     code,
     // Re-derive status from the HTTP code so a 404 can never be shown as anything else.
@@ -75,6 +93,9 @@ export function normalizeCheckResult(code: string, raw: unknown): CheckResult {
         : null,
     reason: typeof r.reason === "string" ? r.reason : "",
     checkedAt: typeof r.checkedAt === "string" ? r.checkedAt : new Date().toISOString(),
+    // 200/404 can only come from Discord; otherwise trust only an explicit boolean.
+    discordQueried:
+      status !== "inconclusive" ? true : typeof r.discordQueried === "boolean" ? r.discordQueried : null,
   };
 }
 
@@ -113,6 +134,8 @@ export interface QueueOutcome {
   reason: QueueStopReason;
   checked: number;
   retryAfterSeconds: number | null;
+  /** Set only when reason is "rate_limited". */
+  rateLimitSource: RateLimitSource | null;
 }
 
 /**
@@ -126,10 +149,15 @@ export async function runVerificationQueue(opts: QueueOptions): Promise<QueueOut
   const maxErrors = opts.maxConsecutiveErrors ?? MAX_CONSECUTIVE_ERRORS;
   let checked = 0;
   let consecutiveErrors = 0;
-  const out = (reason: QueueStopReason, retryAfterSeconds: number | null = null): QueueOutcome => ({
+  const out = (
+    reason: QueueStopReason,
+    retryAfterSeconds: number | null = null,
+    rateLimitSource: RateLimitSource | null = null,
+  ): QueueOutcome => ({
     reason,
     checked,
     retryAfterSeconds,
+    rateLimitSource,
   });
 
   for (let i = 0; i < codes.length; i++) {
@@ -145,7 +173,8 @@ export async function runVerificationQueue(opts: QueueOptions): Promise<QueueOut
     const result = await check(code);
     checked++;
     opts.onResult?.(result, i);
-    if (result.httpStatus === 429) return out("rate_limited", result.retryAfterSeconds);
+    if (result.httpStatus === 429)
+      return out("rate_limited", result.retryAfterSeconds, rateLimitSourceOf(result));
     if (result.status === "inconclusive") {
       consecutiveErrors++;
       if (consecutiveErrors >= maxErrors) return out("errors");
