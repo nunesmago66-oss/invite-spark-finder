@@ -13,17 +13,18 @@ import { DEFAULT_CATALOG, type CatalogEntry } from "@/lib/vanity/catalog";
 import { DEFAULT_SCANNER_CONFIG, type ResultsMap, type ScannerConfig } from "@/lib/vanity/scanner";
 import { usePersistentState } from "@/lib/vanity/use-persistent-state";
 import { StorageNotice } from "@/components/vanity/StorageNotice";
+import logoUrl from "@/assets/drug-url-logo.png";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Discord Vanity Finder — scanner de códigos de 2 e 3 caracteres" },
+      { title: "DRUG URL — scanner de códigos de 2 e 3 caracteres" },
       {
         name: "description",
         content:
-          "Varredura sequencial e conservadora de convites do Discord de 2 e 3 caracteres. Não encontrado não significa vanity URL disponível.",
+          "DRUG URL: varredura sequencial e conservadora de convites do Discord de 2 e 3 caracteres. Não encontrado não significa vanity URL disponível.",
       },
-      { property: "og:title", content: "Discord Vanity Finder" },
+      { property: "og:title", content: "DRUG URL — Find your perfect URL" },
       {
         property: "og:description",
         content:
@@ -62,9 +63,24 @@ function Index() {
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl px-3 pb-[calc(env(safe-area-inset-bottom)+2rem)] sm:max-w-3xl sm:px-6 lg:max-w-5xl xl:max-w-6xl">
-      <header className="pt-5 pb-3">
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Discord Vanity Finder</h1>
-        <p className="text-sm text-muted-foreground">
+      <header className="pt-8 pb-4 text-center sm:pt-10">
+        <img
+          src={logoUrl}
+          alt="DRUG URL"
+          width={816}
+          height={816}
+          className="mx-auto size-16 sm:size-20"
+        />
+        <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">
+          <span className="text-brand-gradient">DRUG URL</span>
+        </h1>
+        <p className="mt-1 text-sm font-medium text-foreground/80 sm:text-base">
+          Find your perfect URL.
+        </p>
+        <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">
+          Discover. Search. Verify.
+        </p>
+        <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
           Scanner de convites de 2 e 3 caracteres. Não encontra URLs registráveis — só indica quais
           códigos não têm convite ativo.
         </p>
