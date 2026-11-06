@@ -1,15 +1,20 @@
-/** Client-safe rules shared by the server check and the browser queue. */
+/** Client-safe rules shared by the server check and the browser scanner. */
 
+/** Hard floor between two consecutive requests; the user can only choose slower speeds. */
 export const MIN_INTERVAL_MS = 3000;
-export const SESSION_LIMIT = 30;
+export const INTERVAL_OPTIONS_MS = [3000, 5000, 10000, 20000, 30000] as const;
+/** Scanner auto-pauses after this many checks; the user must tap "Retomar". */
+export const BATCH_OPTIONS = [50, 100, 250] as const;
+/** Consecutive errors (non-429) that pause the scanner. */
+export const MAX_CONSECUTIVE_ERRORS = 3;
 export const REQUEST_TIMEOUT_MS = 8000;
 
 export type CheckStatus = "exists" | "not_found" | "inconclusive";
 
 export const STATUS_LABEL: Record<CheckStatus, string> = {
   exists: "Convite existente",
-  not_found: "Não encontrado",
-  inconclusive: "Inconclusivo",
+  not_found: "Não encontrado — disponibilidade não confirmada",
+  inconclusive: "Erro/limite de taxa",
 };
 
 export interface CheckResult {
@@ -35,7 +40,7 @@ export function isValidCode(code: string): boolean {
   return CODE_RE.test(code) && !code.startsWith("-") && !code.endsWith("-");
 }
 
-/** 200 → exists, 404 → not found, everything else (incl. no response) → inconclusive. */
+/** 200 → exists, 404 → not found, everything else (incl. no response) → error/rate limit. */
 export function classifyHttpStatus(httpStatus: number | null): CheckStatus {
   if (httpStatus === 200) return "exists";
   if (httpStatus === 404) return "not_found";
@@ -55,12 +60,17 @@ export function parseRetryAfter(header: string | null, bodyRetryAfter?: unknown)
   return values.length ? Math.max(...values) : null;
 }
 
-export type QueueStopReason = "done" | "stopped" | "rate_limited" | "budget" | "error";
+export const clampInterval = (ms: number) =>
+  Number.isFinite(ms) ? Math.max(MIN_INTERVAL_MS, ms) : MIN_INTERVAL_MS;
+
+export type QueueStopReason = "done" | "stopped" | "rate_limited" | "batch" | "errors";
 
 export interface QueueOptions {
   codes: string[];
-  remainingBudget: number;
+  batchLimit: number;
+  intervalMs: number;
   initialDelayMs?: number;
+  maxConsecutiveErrors?: number;
   check: (code: string) => Promise<CheckResult>;
   sleep: (ms: number) => Promise<void>;
   shouldStop: () => boolean;
@@ -75,30 +85,44 @@ export interface QueueOutcome {
 }
 
 /**
- * Strictly sequential: one request at a time, at least MIN_INTERVAL_MS between
- * requests, stops at the first rate limit (429) and never exceeds the budget.
+ * Strictly sequential: one request at a time, waits at least MIN_INTERVAL_MS
+ * between requests, pauses at the first rate limit (429), after `batchLimit`
+ * checks, or after too many consecutive errors.
  */
 export async function runVerificationQueue(opts: QueueOptions): Promise<QueueOutcome> {
   const { codes, check, sleep, shouldStop } = opts;
+  const interval = clampInterval(opts.intervalMs);
+  const maxErrors = opts.maxConsecutiveErrors ?? MAX_CONSECUTIVE_ERRORS;
   let checked = 0;
+  let consecutiveErrors = 0;
+  const out = (reason: QueueStopReason, retryAfterSeconds: number | null = null): QueueOutcome => ({
+    reason,
+    checked,
+    retryAfterSeconds,
+  });
+
   for (let i = 0; i < codes.length; i++) {
-    if (shouldStop()) return { reason: "stopped", checked, retryAfterSeconds: null };
-    if (checked >= opts.remainingBudget) return { reason: "budget", checked, retryAfterSeconds: null };
-    const delay = i === 0 ? Math.max(0, opts.initialDelayMs ?? 0) : MIN_INTERVAL_MS;
+    if (shouldStop()) return out("stopped");
+    if (checked >= opts.batchLimit) return out("batch");
+    const delay = i === 0 ? Math.max(0, opts.initialDelayMs ?? 0) : interval;
     if (delay > 0) {
       await sleep(delay);
-      if (shouldStop()) return { reason: "stopped", checked, retryAfterSeconds: null };
+      if (shouldStop()) return out("stopped");
     }
     const code = codes[i] as string;
     opts.onStart?.(code, i);
     const result = await check(code);
     checked++;
     opts.onResult?.(result, i);
-    if (result.httpStatus === 429) {
-      return { reason: "rate_limited", checked, retryAfterSeconds: result.retryAfterSeconds };
+    if (result.httpStatus === 429) return out("rate_limited", result.retryAfterSeconds);
+    if (result.status === "inconclusive") {
+      consecutiveErrors++;
+      if (consecutiveErrors >= maxErrors) return out("errors");
+    } else {
+      consecutiveErrors = 0;
     }
   }
-  return { reason: "done", checked, retryAfterSeconds: null };
+  return out("done");
 }
 
 function csvCell(value: unknown): string {
