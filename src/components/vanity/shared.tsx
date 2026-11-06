@@ -2,10 +2,8 @@ import { AlertTriangle, CircleHelp, Link2, SearchX } from "lucide-react";
 import type { SelectHTMLAttributes } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { STATUS_LABEL, type CheckResult, type CheckStatus } from "@/lib/vanity/check-rules";
+import { STATUS_LABEL, type CheckStatus } from "@/lib/vanity/check-rules";
 import { cn } from "@/lib/utils";
-
-export type HistoryItem = CheckResult & { id: string };
 
 export const NOT_FOUND_WARNING = "Não encontrado NÃO significa disponível para vanity URL";
 
@@ -20,8 +18,8 @@ const STATUS_ICON = { exists: Link2, not_found: SearchX, inconclusive: CircleHel
 export function StatusBadge({ status, className }: { status: CheckStatus; className?: string }) {
   const Icon = STATUS_ICON[status];
   return (
-    <Badge variant={STATUS_VARIANT[status]} className={cn("gap-1 whitespace-nowrap", className)}>
-      <Icon className="size-3.5" aria-hidden />
+    <Badge variant={STATUS_VARIANT[status]} className={cn("gap-1 text-left", className)}>
+      <Icon className="size-3.5 shrink-0" aria-hidden />
       {STATUS_LABEL[status]}
     </Badge>
   );
@@ -38,12 +36,14 @@ export function WarningBanner({ compact = false }: { compact?: boolean }) {
     >
       <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
       <p>
-        <strong>{NOT_FOUND_WARNING}.</strong>
-        {!compact && (
+        <strong>{NOT_FOUND_WARNING}.</strong>{" "}
+        {compact ? (
+          "A API pública não confirma disponibilidade de vanity URL."
+        ) : (
           <>
-            {" "}
-            A consulta pública de convites só diz se existe um convite com o código. Disponibilidade
-            de vanity URL só pode ser confirmada nas configurações oficiais de um servidor elegível.
+            A API pública de convites só informa se já existe um convite com o código. Ela não
+            confirma elegibilidade nem disponibilidade de vanity URL — só o fluxo oficial do Discord,
+            nas configurações de um servidor elegível, pode confirmar isso.
           </>
         )}
       </p>

@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   MIN_INTERVAL_MS,
-  SESSION_LIMIT,
   classifyHttpStatus,
   isValidCode,
   normalizeCode,
@@ -34,7 +33,14 @@ describe("classifyHttpStatus", () => {
 
 describe("limits", () => {
   it("waits at least 3 seconds between checks", () => expect(MIN_INTERVAL_MS).toBe(3000));
-  it("allows at most 30 checks per session", () => expect(SESSION_LIMIT).toBe(30));
+  it("never goes faster than 3 seconds", async () => {
+    const sleep = vi.fn(async () => {});
+    await runVerificationQueue({
+      codes: ["aa", "bb"], batchLimit: 10, intervalMs: 500, sleep, shouldStop: () => false,
+      check: async (c) => res(c, 404),
+    });
+    expect(sleep).toHaveBeenCalledWith(3000);
+  });
 });
 
 describe("parseRetryAfter", () => {
@@ -65,7 +71,7 @@ describe("runVerificationQueue", () => {
       ...base,
       sleep,
       codes: ["aa", "bb", "cc"],
-      remainingBudget: 30,
+      batchLimit: 30, intervalMs: 3000,
       check: async (c) => {
         order.push(c);
         return res(c, 404);
@@ -82,7 +88,7 @@ describe("runVerificationQueue", () => {
     const out = await runVerificationQueue({
       ...base,
       codes: ["aa", "bb", "cc"],
-      remainingBudget: 30,
+      batchLimit: 30, intervalMs: 3000,
       check,
     });
     expect(out).toEqual({ reason: "rate_limited", checked: 2, retryAfterSeconds: 12 });
@@ -94,10 +100,10 @@ describe("runVerificationQueue", () => {
     const out = await runVerificationQueue({
       ...base,
       codes: ["aa", "bb", "cc"],
-      remainingBudget: 1,
+      batchLimit: 1, intervalMs: 3000,
       check,
     });
-    expect(out.reason).toBe("budget");
+    expect(out.reason).toBe("batch");
     expect(check).toHaveBeenCalledTimes(1);
   });
 
@@ -111,12 +117,22 @@ describe("runVerificationQueue", () => {
       ...base,
       shouldStop: () => stop,
       codes: ["aa", "bb"],
-      remainingBudget: 30,
+      batchLimit: 30, intervalMs: 3000,
       check,
     });
     expect(out.reason).toBe("stopped");
     expect(check).toHaveBeenCalledTimes(1);
   });
+});
+
+it("pauses after 3 consecutive errors", async () => {
+  const check = vi.fn(async (c: string) => res(c, 500));
+  const out = await runVerificationQueue({
+    codes: ["aa", "bb", "cc", "dd"], batchLimit: 30, intervalMs: 3000,
+    sleep: async () => {}, shouldStop: () => false, check,
+  });
+  expect(out.reason).toBe("errors");
+  expect(check).toHaveBeenCalledTimes(3);
 });
 
 describe("toCsv", () => {

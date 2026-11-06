@@ -30,7 +30,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { copyText, downloadCsv, inviteLabel, inviteUrl } from "@/lib/vanity/browser";
 import { CATEGORIES, DEFAULT_CATALOG, KIND_LABEL, type CatalogEntry } from "@/lib/vanity/catalog";
-import { STATUS_LABEL, toCsv, type CheckResult } from "@/lib/vanity/check-rules";
+import { toCsv } from "@/lib/vanity/check-rules";
+import { statusLabelOf, statusOf, type ResultsMap } from "@/lib/vanity/scanner";
 import { cn } from "@/lib/utils";
 
 import { EntryDialog } from "./EntryDialog";
@@ -41,7 +42,7 @@ interface Props {
   setEntries: React.Dispatch<React.SetStateAction<CatalogEntry[]>>;
   selected: string[];
   setSelected: React.Dispatch<React.SetStateAction<string[]>>;
-  lastStatus: Record<string, CheckResult>;
+  lastStatus: ResultsMap;
   onGoVerify: () => void;
 }
 
@@ -113,9 +114,9 @@ export function CandidatesTab({
         e.category,
         e.code.length,
         e.favorite ? "sim" : "não",
-        st ? STATUS_LABEL[st.status] : "não verificado",
-        st?.checkedAt ?? "",
-        st?.status === "not_found" ? NOT_FOUND_WARNING : "",
+        st ? statusLabelOf(st) : "não verificado",
+        st ? new Date(st[2] * 1000).toISOString() : "",
+        st?.[0] === "n" ? NOT_FOUND_WARNING : "",
       ];
     });
     downloadCsv(
@@ -282,7 +283,7 @@ export function CandidatesTab({
                 Limpar seleção
               </Button>
               <Button type="button" variant="secondary" size="sm" onClick={onGoVerify}>
-                Verificar ({selected.length})
+                Escanear ({selected.length})
               </Button>
             </>
           )}
@@ -323,7 +324,7 @@ export function CandidatesTab({
                       <Badge variant="outline" className="font-normal">
                         {KIND_LABEL[e.kind]}
                       </Badge>
-                      {st && <StatusBadge status={st.status} />}
+                      {st && <StatusBadge status={statusOf(st)} />}
                     </div>
                   </div>
                   <Button

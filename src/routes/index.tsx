@@ -1,30 +1,30 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CandidatesTab } from "@/components/vanity/CandidatesTab";
 import { ConfirmTab } from "@/components/vanity/ConfirmTab";
-import { HistoryTab } from "@/components/vanity/HistoryTab";
-import { VerifyTab } from "@/components/vanity/VerifyTab";
-import { WarningBanner, type HistoryItem } from "@/components/vanity/shared";
+import { ResultsTab } from "@/components/vanity/ResultsTab";
+import { ScannerTab } from "@/components/vanity/ScannerTab";
+import { WarningBanner } from "@/components/vanity/shared";
 import { DEFAULT_CATALOG, type CatalogEntry } from "@/lib/vanity/catalog";
-import type { CheckResult } from "@/lib/vanity/check-rules";
+import { DEFAULT_SCANNER_CONFIG, type ResultsMap, type ScannerConfig } from "@/lib/vanity/scanner";
 import { usePersistentState } from "@/lib/vanity/use-persistent-state";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Discord Vanity Finder — códigos curtos de 2 e 3 caracteres" },
+      { title: "Discord Vanity Finder — scanner de códigos de 2 e 3 caracteres" },
       {
         name: "description",
         content:
-          "Organize e avalie códigos curtos de convite do Discord com significado. Verificação pública honesta: não encontrado não significa disponível.",
+          "Varredura sequencial e conservadora de convites do Discord de 2 e 3 caracteres. Não encontrado não significa vanity URL disponível.",
       },
       { property: "og:title", content: "Discord Vanity Finder" },
       {
         property: "og:description",
         content:
-          "Catálogo de códigos de 2 e 3 caracteres com significado, favoritos, verificação pública de convites e exportação CSV.",
+          "Scanner honesto de códigos curtos do Discord: convite existente, não encontrado (não confirmado) ou erro. Funciona no Safari do iPhone.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -33,35 +33,26 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-const HISTORY_MAX = 500;
-type Tab = "candidatos" | "verificar" | "historico" | "confirmar";
+type Tab = "scanner" | "resultados" | "catalogo" | "ajuda";
 
 function Index() {
-  const [tab, setTab] = useState<Tab>("candidatos");
+  const [tab, setTab] = useState<Tab>("scanner");
+  const [running, setRunning] = useState(false);
   const [entries, setEntries] = usePersistentState<CatalogEntry[]>("dvf:catalog:v1", DEFAULT_CATALOG);
   const [selected, setSelected] = usePersistentState<string[]>("dvf:selected", []);
-  const [history, setHistory] = usePersistentState<HistoryItem[]>("dvf:history", []);
-
-  const lastStatus = useMemo(() => {
-    const map: Record<string, CheckResult> = {};
-    for (const h of history) if (!map[h.code]) map[h.code] = h;
-    return map;
-  }, [history]);
-
-  const addResult = (r: CheckResult) =>
-    setHistory((h) =>
-      [{ ...r, id: `${r.code}-${r.checkedAt}-${Math.random().toString(36).slice(2, 7)}` }, ...h].slice(
-        0,
-        HISTORY_MAX,
-      ),
-    );
+  const [results, setResults] = usePersistentState<ResultsMap>("dvf:results:v1", {});
+  const [config, setConfig] = usePersistentState<ScannerConfig>(
+    "dvf:scanner-config:v1",
+    DEFAULT_SCANNER_CONFIG,
+  );
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl px-3 pb-[calc(env(safe-area-inset-bottom)+2rem)]">
       <header className="pt-5 pb-3">
         <h1 className="text-2xl font-bold tracking-tight">Discord Vanity Finder</h1>
         <p className="text-sm text-muted-foreground">
-          Organize códigos curtos de 2 e 3 caracteres com significado.
+          Scanner de convites de 2 e 3 caracteres. Não encontra URLs registráveis — só indica quais
+          códigos não têm convite ativo.
         </p>
       </header>
 
@@ -69,51 +60,58 @@ function Index() {
         <div className="sticky top-0 z-20 -mx-3 space-y-2 bg-background/95 px-3 pt-2 pb-2 backdrop-blur">
           <WarningBanner compact />
           <TabsList className="grid h-11 w-full grid-cols-4">
-            <TabsTrigger value="candidatos" className="h-9 px-1 text-xs sm:text-sm">
-              Candidatos
+            <TabsTrigger value="scanner" className="h-9 px-1 text-xs sm:text-sm">
+              Scanner{running ? " ●" : ""}
             </TabsTrigger>
-            <TabsTrigger value="verificar" className="h-9 px-1 text-xs sm:text-sm">
-              Verificar{selected.length > 0 ? ` (${selected.length})` : ""}
+            <TabsTrigger value="resultados" className="h-9 px-1 text-xs sm:text-sm">
+              Resultados
             </TabsTrigger>
-            <TabsTrigger value="historico" className="h-9 px-1 text-xs sm:text-sm">
-              Histórico
+            <TabsTrigger value="catalogo" className="h-9 px-1 text-xs sm:text-sm">
+              Catálogo
             </TabsTrigger>
-            <TabsTrigger value="confirmar" className="h-9 px-1 text-xs sm:text-sm">
-              Confirmar
+            <TabsTrigger value="ajuda" className="h-9 px-1 text-xs sm:text-sm">
+              Ajuda
             </TabsTrigger>
           </TabsList>
         </div>
 
-        <TabsContent value="candidatos" forceMount className="mt-3 data-[state=inactive]:hidden">
+        <TabsContent value="scanner" forceMount className="mt-3 data-[state=inactive]:hidden">
+          <ScannerTab
+            config={config}
+            setConfig={setConfig}
+            selected={selected}
+            results={results}
+            setResults={setResults}
+            running={running}
+            setRunning={setRunning}
+            onGoCatalog={() => setTab("catalogo")}
+            onGoResults={() => setTab("resultados")}
+          />
+        </TabsContent>
+        <TabsContent value="resultados" forceMount className="mt-3 data-[state=inactive]:hidden">
+          <ResultsTab results={results} setResults={setResults} entries={entries} running={running} />
+        </TabsContent>
+        <TabsContent value="catalogo" forceMount className="mt-3 data-[state=inactive]:hidden">
           <CandidatesTab
             entries={entries}
             setEntries={setEntries}
             selected={selected}
             setSelected={setSelected}
-            lastStatus={lastStatus}
-            onGoVerify={() => setTab("verificar")}
+            lastStatus={results}
+            onGoVerify={() => {
+              setConfig((c) => ({ ...c, source: "catalog" }));
+              setTab("scanner");
+            }}
           />
         </TabsContent>
-        <TabsContent value="verificar" forceMount className="mt-3 data-[state=inactive]:hidden">
-          <VerifyTab
-            selected={selected}
-            setSelected={setSelected}
-            onResult={addResult}
-            onGoCandidates={() => setTab("candidatos")}
-            onGoConfirm={() => setTab("confirmar")}
-          />
-        </TabsContent>
-        <TabsContent value="historico" forceMount className="mt-3 data-[state=inactive]:hidden">
-          <HistoryTab history={history} setHistory={setHistory} entries={entries} />
-        </TabsContent>
-        <TabsContent value="confirmar" forceMount className="mt-3 data-[state=inactive]:hidden">
+        <TabsContent value="ajuda" forceMount className="mt-3 data-[state=inactive]:hidden">
           <ConfirmTab />
         </TabsContent>
       </Tabs>
 
       <footer className="mt-10 border-t pt-4 text-xs text-muted-foreground">
-        Projeto independente, sem afiliação com o Discord. Não pede login, não usa tokens e salva
-        dados apenas neste aparelho.
+        Projeto independente, sem afiliação com o Discord. Não usa login, tokens, proxies nem tenta
+        contornar CAPTCHA ou limites. Dados salvos apenas neste aparelho.
       </footer>
     </div>
   );
