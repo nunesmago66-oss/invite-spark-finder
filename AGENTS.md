@@ -35,3 +35,5 @@ use the editor.
 - Verification rules (status classification, min interval, batch auto-pause, consecutive-error pause, stop-on-429 queue) live in `src/lib/vanity/check-rules.ts` with tests beside it; change them there, not in components.
 - Scanner candidate generation and compact result storage live in `src/lib/vanity/scanner.ts` so ~48k results fit in localStorage and survive reloads.
 - User data (catalog, favorites, selection, scan results/progress) is stored in the browser only (localStorage/sessionStorage); no accounts or backend database.
+- Meaning discovery uses a deterministic multilingual dictionary and phonetic generator in `meaning-generator.ts`; invented sounds remain separate from dictionary meanings to prevent fabricated translations.
+- Exhaustive and meaning scanners have separate persistent configs/results and use the same ScannerTab/verification queue; shared cooldown and last-request time plus mutual exclusion preserve rate limits across modes.

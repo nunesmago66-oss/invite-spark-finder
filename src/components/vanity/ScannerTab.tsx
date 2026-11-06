@@ -29,13 +29,19 @@ import {
   type ResultsMap,
   type ScannerConfig,
 } from "@/lib/vanity/scanner";
-import { usePersistentState } from "@/lib/vanity/use-persistent-state";
 import { useWakeLock } from "@/lib/vanity/use-wake-lock";
 import { cn } from "@/lib/utils";
 
 import { EmptyState, NativeSelect, StatusBadge, WarningBanner } from "./shared";
 
 interface Props {
+  candidateCodes?: string[];
+  meaningMode?: boolean;
+  blocked?: boolean;
+  cooldownUntil: number;
+  setCooldownUntil: React.Dispatch<React.SetStateAction<number>>;
+  lastCheckAt: number;
+  setLastCheckAt: React.Dispatch<React.SetStateAction<number>>;
   config: ScannerConfig;
   setConfig: React.Dispatch<React.SetStateAction<ScannerConfig>>;
   selected: string[];
@@ -50,6 +56,13 @@ interface Props {
 type Msg = { tone: "info" | "error"; text: string };
 
 export function ScannerTab({
+  candidateCodes,
+  meaningMode = false,
+  blocked = false,
+  cooldownUntil,
+  setCooldownUntil,
+  lastCheckAt,
+  setLastCheckAt,
   config,
   setConfig,
   selected,
@@ -61,8 +74,6 @@ export function ScannerTab({
   onGoResults,
 }: Props) {
   const checkFn = useServerFn(checkInvite);
-  const [cooldownUntil, setCooldownUntil] = usePersistentState("dvf:cooldown-until", 0);
-  const [lastCheckAt, setLastCheckAt] = usePersistentState("dvf:last-check-at", 0);
   const [current, setCurrent] = useState<string | null>(null);
   const [nextAt, setNextAt] = useState(0);
   const [recent, setRecent] = useState<CheckResult[]>([]);
@@ -97,10 +108,10 @@ export function ScannerTab({
 
   const candidates = useMemo(
     () =>
-      config.source === "generated"
+      candidateCodes ?? (config.source === "generated"
         ? generateCandidates(config.len2, config.len3, config.charset)
-        : selected,
-    [config.source, config.len2, config.len3, config.charset, selected],
+        : selected),
+    [candidateCodes, config.source, config.len2, config.len3, config.charset, selected],
   );
 
   const stats = useMemo(() => {
@@ -138,7 +149,7 @@ export function ScannerTab({
   }
 
   async function start() {
-    if (running || cooling) return;
+    if (running || cooling || blocked) return;
     const queue = candidates.filter((c) => !results[c]);
     if (queue.length === 0) return;
     stopRef.current = false;
@@ -236,7 +247,7 @@ export function ScannerTab({
 
   const cooldownSecs = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
   const nextSecs = nextAt ? Math.max(0, Math.ceil((nextAt - now) / 1000)) : 0;
-  const noLength = config.source === "generated" && !config.len2 && !config.len3;
+  const noLength = !meaningMode && config.source === "generated" && !config.len2 && !config.len3;
   const startLabel = cooling
     ? `Aguarde ${cooldownSecs}s (limite de taxa)`
     : stats.tested > 0
@@ -249,8 +260,8 @@ export function ScannerTab({
 
       <section className="space-y-3 rounded-lg border bg-card p-3" aria-label="Configuração">
         <h2 className="font-semibold">Configuração</h2>
-        <fieldset disabled={running} className="space-y-3 disabled:opacity-60">
-          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Fonte dos candidatos">
+        <fieldset disabled={running || blocked} className="space-y-3 disabled:opacity-60">
+          {!meaningMode && <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Fonte dos candidatos">
             {(
               [
                 ["generated", "Gerar automaticamente"],
@@ -275,9 +286,9 @@ export function ScannerTab({
                 {label}
               </label>
             ))}
-          </div>
+          </div>}
 
-          {config.source === "generated" ? (
+          {!meaningMode && (config.source === "generated" ? (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <span className="text-xs text-muted-foreground">Comprimento</span>
@@ -323,7 +334,7 @@ export function ScannerTab({
                 </Button>
               </EmptyState>
             )
-          )}
+          ))}
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -427,14 +438,14 @@ export function ScannerTab({
             <Button
               type="button"
               className="h-12 flex-1"
-              disabled={cooling || pending === 0 || noLength}
+              disabled={blocked || cooling || pending === 0 || noLength}
               onClick={start}
             >
               <Play aria-hidden /> {startLabel}
             </Button>
           )}
           {!running && stats.x > 0 && (
-            <Button type="button" variant="outline" className="h-12" onClick={retestErrors}>
+            <Button type="button" variant="outline" className="h-12" disabled={blocked} onClick={retestErrors}>
               <RotateCcw aria-hidden /> Retestar erros ({stats.x})
             </Button>
           )}
