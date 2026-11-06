@@ -23,7 +23,8 @@ export async function checkInviteOnDiscord(code: string, clientKey: string): Pro
       status: "inconclusive",
       httpStatus: 429,
       retryAfterSeconds: wait,
-      reason: `Limite de requisições ativo. Aguarde ${wait}s.`,
+      reason: `Bloqueio preventivo do app: um limite de taxa do Discord recebido há pouco ainda está ativo. Nenhuma consulta foi enviada ao Discord. Aguarde ${wait}s.`,
+      discordQueried: false,
     });
   }
 
@@ -34,7 +35,8 @@ export async function checkInviteOnDiscord(code: string, clientKey: string): Pro
       status: "inconclusive",
       httpStatus: null,
       retryAfterSeconds: null,
-      reason: "Consultas muito rápidas. Aguarde alguns segundos.",
+      reason: "Consultas muito rápidas. Nenhuma consulta foi enviada ao Discord. Aguarde alguns segundos.",
+      discordQueried: false,
     });
   }
   if (lastByClient.size > 5000) lastByClient.clear();
@@ -66,7 +68,8 @@ export async function checkInviteOnDiscord(code: string, clientKey: string): Pro
         status: "inconclusive",
         httpStatus: 429,
         retryAfterSeconds: retry,
-        reason: `Limite de requisições do Discord (429). Tente após ${Math.ceil(retry)}s.`,
+        reason: `O Discord retornou limite de taxa (HTTP 429). Tente após ${Math.ceil(retry)}s.`,
+        discordQueried: true,
       });
     }
 
@@ -84,7 +87,7 @@ export async function checkInviteOnDiscord(code: string, clientKey: string): Pro
         : status === "not_found"
           ? "Nenhum convite encontrado (HTTP 404). Isso NÃO confirma disponibilidade para vanity URL."
           : `Resposta inesperada do Discord (HTTP ${res.status}).`;
-    return result(code, { status, httpStatus: res.status, retryAfterSeconds: null, reason });
+    return result(code, { status, httpStatus: res.status, retryAfterSeconds: null, reason, discordQueried: true });
   } catch (err) {
     console.error("invite check failed", code, err);
     const timedOut = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
@@ -93,6 +96,7 @@ export async function checkInviteOnDiscord(code: string, clientKey: string): Pro
       httpStatus: null,
       retryAfterSeconds: null,
       reason: timedOut ? "Tempo esgotado ao consultar o Discord." : "Falha de rede ao consultar o Discord.",
+      discordQueried: true,
     });
   }
 }
