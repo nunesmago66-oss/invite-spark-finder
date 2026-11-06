@@ -31,7 +31,7 @@ import {
 } from "@/lib/vanity/scanner";
 import { useWakeLock } from "@/lib/vanity/use-wake-lock";
 import { acquireScanLock, type ScanLock } from "@/lib/vanity/scan-lock";
-import { decodeSavedData, hasStorageFailure, subscribeStorage } from "@/lib/vanity/persistence";
+import { decodeSavedData, hasStorageFailure, readSavedTiming, subscribeStorage } from "@/lib/vanity/persistence";
 import { cn } from "@/lib/utils";
 
 import { EmptyState, NativeSelect, StatusBadge, WarningBanner } from "./shared";

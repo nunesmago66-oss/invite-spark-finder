@@ -29,7 +29,7 @@ export function usePersistentState<T>(
       const recovered = store.getItem(recoveryKey(key));
       const raw = recovered ?? original;
       if (original !== null) rememberOriginal(key, original);
-      const decoded = raw === null ? { value: initial, recovered: false } : decodeSavedData(key, raw, initial);
+      const decoded: { value: unknown; recovered: boolean } = raw === null ? { value: initial, recovered: false } : decodeSavedData(key, raw, initial);
       if (isTimingKey(key)) {
         // Cooldown / last check: never let a recovered (e.g. zero) value shorten an active wait.
         const values = [original, recovered].filter((r): r is string => r !== null).map((r) => decodeSavedData(key, r, initial).value);
