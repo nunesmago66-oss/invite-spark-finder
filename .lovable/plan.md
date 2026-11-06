@@ -84,17 +84,17 @@ Sem tokens **Discord**, proxies de evasão, rotação de IP ou login Discord. AP
 
 Recuperação no mesmo dispositivo depende de ID/autorização persistidos; outro dispositivo ou cookies apagados requer recuperação segura, não contas/sincronização pessoal prometidas implicitamente.
 
-## 7. Arquivos e configurações futuras
-Serviço separado, inventário conceitual: `api.ts`, `coordinator.ts`, `scheduler.ts`, `discord-client.ts`, `quota-budget.ts`, `schema.sql`, `migrations/`, `contracts.ts`, `candidate-manifest.ts`, `auth.ts`, testes e manual operacional. Configuração: Free, binding DO SQLite, migração inicial, ID único, watchdog UTC, origens/autorização, orçamento e retenção. **Nenhum arquivo de implantação gerado agora.**
+## 7. Arquivos e configuração futura
+Serviço separado: api, coordinator, scheduler, discord-client, quota-budget, contracts, candidate-manifest e auth (`.ts`); schema.sql/migrations; testes/manual. Configuração: Free, DO SQLite/migração inicial, ID único, watchdog UTC, origens/autorização, orçamento/retenção. Nenhuma infraestrutura de implantação gerada agora.
 
-Aplicativo: novos `remote-jobs.ts`, `use-remote-jobs.ts`, `remote-migration.ts` e testes; adaptação de ScannerTab, ResultsTab, StorageNotice, index, persistência e invite-check.functions/server. Reusar geradores e check-rules sem alterar regras. Atualizar AGENTS somente após aprovação da mudança de dados locais. Preservar layouts e demais recursos.
+App: remote-jobs.ts, use-remote-jobs.ts, remote-migration.ts/testes; adaptar ScannerTab, ResultsTab, StorageNotice, index, persistência e invite-check.functions/server. Reusar geradores/check-rules. Atualizar AGENTS após aprovação da mudança estrutural.
 
-## 8. Bloqueios e validação futura
-Antes de ativar: Free/cotas reais da conta, implantação externa disponível, autorização privada, consumo medido e revisão das políticas Discord. Get Invite público não autoriza automaticamente enumeração em massa; 3 s não prova conformidade. Não lançar varredura permanente contrária aos termos.
+## 8. Bloqueios e testes futuros
+Exigir Free/cotas reais, implantação externa, autorização privada, consumo medido e revisão das políticas Discord. Get Invite público não autoriza automaticamente enumeração; 3 s não prova conformidade. Não lançar uso contrário aos termos.
 
-Testar: dois jobs+abas; ≥3.000 ms inclusive retries/crashes; uma consulta em voo; 429 global persistente sem auto-retomar; 404 honesto; lotes/erros; cancelar sem apagar; comandos/importações duplicados/corrompidos; quota/CPU/SQLite; alarmes repetidos/atrasados/ausentes; site fechado e releitura; backup/CSV; regressão de 3.623 sugestões e todos os recursos; Safari real e telas diversas.
+Testar jobs+abas/intervalo ≥3.000 ms; retries/crashes; uma consulta em voo; 429 global persistente/manual; 404 honesto; lotes/erros; cancelar sem apagar; comandos/importações duplicados/corrompidos; quotas/CPU/SQLite; alarmes atrasados/repetidos/ausentes; site fechado/releitura; backup/CSV; 3.623 sugestões/demais recursos; Safari real/telas diversas. Simular falhas sem sobrecarregar Discord.
 
-Simular 429/falhas, sem sobrecarregar Discord. **Nenhum desses testes remotos foi executado nesta análise.** Implementar por etapas somente após aprovação; conexão, migração e publicação continuam dependendo de autorização.
+**Testes remotos não executados nesta análise.** Implementação por etapas após aprovação; conexão/migração/publicação continuam exigindo autorização.
 
 ### Fontes oficiais
 - [Workers: preços](https://developers.cloudflare.com/workers/platform/pricing/) e [limites](https://developers.cloudflare.com/workers/platform/limits/).
