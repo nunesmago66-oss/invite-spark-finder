@@ -28,7 +28,7 @@ SQLite: coordinator (timing/cooldown/cotas); jobs (modo/config/cursor/lote/erros
 
 Estados: queued/running/pausing; pausado por usuário/lote/erro/429/cota/recuperação; cancelled/completed. Iniciar valida/reserva/agenda; pausar impede novos envios e salva consulta em voo; retomar explícito exige cooldown/cotas; **cancelar conserva resultados**, continuar exige novo job explícito. Limpar é separado, confirmado, com escopo local/remoto.
 
-API: criação/comandos idempotentes; estado dos dois modos numa resposta; resultados por revisão/página; importar/exportar/limpar. Um job por modo; filtros/configuração imutáveis durante execução.
+API: criação/comandos idempotentes; estado dos dois modos numa resposta; resultados por revisão/página; importar/exportar/limpar. Um job por modo; configuração congelada.
 
 ## 4. Executor, 429 e recuperação
 1. Serializar todos os envios. Eventos DO podem intercalar durante `await`: ID único não basta. Comandos alteram estado; somente executor serializado consulta.
@@ -41,13 +41,13 @@ API: criação/comandos idempotentes; estado dos dois modos numa resposta; resul
 
 Alarmes: pelo menos uma entrega, um pendente por objeto, retries exponenciais até seis. Duplicatas relerão reservas/estado, sem duplicar avanço ou furar ritmo. Não há pontualidade garantida.
 
-**Queda após envio e antes de salvar deixa resultado incerto**, inclusive possível 429. Não existe exatamente uma vez para HTTP externo. Detectar tentativa pendente e pausar para recuperação manual; não reenviar automaticamente.
+**Queda após envio e antes de salvar deixa resultado incerto**, inclusive possível 429. HTTP externo não garante exatamente uma vez. Detectar tentativa pendente e pausar para recuperação manual; não reenviar automaticamente.
 
 Watchdog de 15 min apenas repara alarme ausente de job running sem tentativa incerta; nunca retoma pausas. Após retries esgotados, manter progresso e sinalizar recuperação. Quota/indisponibilidade pode atrasar o próprio diagnóstico.
 
 ## 5. US$ 0: cotas e orçamento operacional
 
-Documentação pública consultada em **06/11/2026**; confirmar novamente antes de qualquer ativação. Cotas são compartilhadas com outros usos da conta.
+Cotas consultadas em **06/11/2026**, compartilhadas pela conta; reconfirmar antes de ativar.
 
 | Recurso gratuito | Limite publicado |
 |---|---:|
