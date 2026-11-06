@@ -8,6 +8,8 @@ export const BATCH_OPTIONS = [50, 100, 250] as const;
 /** Consecutive errors (non-429) that pause the scanner. */
 export const MAX_CONSECUTIVE_ERRORS = 3;
 export const REQUEST_TIMEOUT_MS = 8000;
+/** Browser-side deadline for one check (server timeout + margin), so the queue never hangs. */
+export const CLIENT_TIMEOUT_MS = REQUEST_TIMEOUT_MS + 7000;
 
 export type CheckStatus = "exists" | "not_found" | "inconclusive";
 
