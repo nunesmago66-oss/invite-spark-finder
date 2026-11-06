@@ -28,3 +28,9 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## Project rules
+
+- Invite checks run only through the `checkInvite` server function (`src/lib/vanity/`); the browser never calls Discord directly, so CORS and rate-limit handling stay in one place.
+- Verification rules (status classification, min interval, session cap, stop-on-429 queue) live in `src/lib/vanity/check-rules.ts` with tests beside it; change them there, not in components.
+- User data (catalog, favorites, selection, history) is stored in the browser only (localStorage/sessionStorage); no accounts or backend database.
