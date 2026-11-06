@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countCandidates, generateCandidates, statusOf, toCompact } from "./scanner";
+import { countCandidates, describeResult, generateCandidates, statusOf, toCompact } from "./scanner";
 
 describe("generateCandidates", () => {
   it("letters only: 676 + 17576 codes", () => {
@@ -18,5 +18,18 @@ describe("compact results", () => {
   it("keeps 404 as not found, never as available", () => {
     const c = toCompact({ code: "zq", status: "not_found", httpStatus: 404, retryAfterSeconds: null, reason: "", checkedAt: "2026-01-01T00:00:00Z" });
     expect(statusOf(c)).toBe("not_found");
+  });
+});
+
+describe("rate-limit origin in compact results", () => {
+  const base = { code: "zq", status: "inconclusive" as const, httpStatus: 429, retryAfterSeconds: 5, reason: "", checkedAt: "2026-01-01T00:00:00Z" };
+  it("marks a Discord 429 and a preventive block differently", () => {
+    expect(toCompact({ ...base, discordQueried: true })[3]).toBe("d");
+    expect(toCompact({ ...base, discordQueried: false })[3]).toBe("a");
+    expect(describeResult(toCompact({ ...base, discordQueried: false }))).toContain("O Discord não foi consultado");
+    expect(describeResult(toCompact({ ...base, discordQueried: true }))).toContain("O Discord retornou");
+  });
+  it("does not add a marker to 200/404 results", () => {
+    expect(toCompact({ ...base, status: "not_found", httpStatus: 404, discordQueried: true })).toHaveLength(3);
   });
 });

@@ -48,8 +48,14 @@ export function countCandidates(len2: boolean, len3: boolean, charset: Charset):
 /* ---------- compact result storage (fits ~48k codes in localStorage) ---------- */
 
 export type StatusKey = "e" | "n" | "x";
-/** [status, http status or null, checked-at epoch seconds] */
-export type CompactResult = [StatusKey, number | null, number];
+/**
+ * Origin of an error/rate-limit result: "d" = Discord was contacted,
+ * "a" = the app answered by itself without contacting Discord.
+ * Stored only on error results (absent on legacy data = origin not recorded).
+ */
+export type OriginKey = "d" | "a";
+/** [status, http status or null, checked-at epoch seconds, origin?] */
+export type CompactResult = [StatusKey, number | null, number, OriginKey?];
 export type ResultsMap = Record<string, CompactResult>;
 
 const TO_KEY: Record<CheckStatus, StatusKey> = { exists: "e", not_found: "n", inconclusive: "x" };
@@ -57,18 +63,26 @@ const FROM_KEY: Record<StatusKey, CheckStatus> = { e: "exists", n: "not_found", 
 
 export function toCompact(r: CheckResult): CompactResult {
   const t = Date.parse(r.checkedAt);
-  return [TO_KEY[r.status], r.httpStatus, Math.floor((Number.isFinite(t) ? t : Date.now()) / 1000)];
+  const base: CompactResult = [TO_KEY[r.status], r.httpStatus, Math.floor((Number.isFinite(t) ? t : Date.now()) / 1000)];
+  if (r.status === "inconclusive" && typeof r.discordQueried === "boolean") base.push(r.discordQueried ? "d" : "a");
+  return base;
 }
 
 export const statusOf = (c: CompactResult): CheckStatus => FROM_KEY[c[0]];
 
 export function describeResult(c: CompactResult): string {
-  const [s, http] = c;
+  const [s, http, , origin] = c;
   if (s === "e") return "Existe um convite ativo com este código (HTTP 200).";
   if (s === "n")
     return "Nenhum convite encontrado (HTTP 404). Disponibilidade de vanity URL NÃO confirmada.";
-  if (http === 429) return "Limite de taxa do Discord (HTTP 429).";
+  if (http === 429) {
+    if (origin === "d") return "O Discord retornou limite de taxa (HTTP 429).";
+    if (origin === "a")
+      return "Bloqueio preventivo do app (limite de taxa recente ainda ativo). O Discord não foi consultado.";
+    return "Limite de taxa (HTTP 429) — origem não registrada.";
+  }
   if (http != null) return `Resposta inesperada (HTTP ${http}).`;
+  if (origin === "a") return "Consulta não enviada pelo app (intervalo mínimo). O Discord não foi consultado.";
   return "Falha de rede ou tempo esgotado.";
 }
 

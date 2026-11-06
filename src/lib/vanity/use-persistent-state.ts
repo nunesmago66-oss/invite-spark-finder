@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { clearStorageError, decodeSavedData, encodeSavedData, getStorageIssues, recoveryKey, registerSaveRetry, rememberInMemory, rememberOriginal, reportStorageIssue } from "./persistence";
+import { clearStorageError, decodeSavedData, isTimingKey, reconcileTiming, encodeSavedData, getStorageIssues, recoveryKey, registerSaveRetry, rememberInMemory, rememberOriginal, reportStorageIssue } from "./persistence";
 
 type StoreKind = "local" | "session";
 
@@ -29,7 +29,12 @@ export function usePersistentState<T>(
       const recovered = store.getItem(recoveryKey(key));
       const raw = recovered ?? original;
       if (original !== null) rememberOriginal(key, original);
-      const decoded = raw === null ? { value: initial, recovered: false } : decodeSavedData(key, raw, initial);
+      const decoded: { value: unknown; recovered: boolean } = raw === null ? { value: initial, recovered: false } : decodeSavedData(key, raw, initial);
+      if (isTimingKey(key)) {
+        // Cooldown / last check: never let a recovered (e.g. zero) value shorten an active wait.
+        const values = [original, recovered].filter((r): r is string => r !== null).map((r) => decodeSavedData(key, r, initial).value);
+        decoded.value = reconcileTiming(key, values, Number(initial) || 0);
+      }
       if (decoded.recovered || recovered !== null) {
         target.current = recoveryKey(key);
         reportStorageIssue(key, null, true);
@@ -87,7 +92,15 @@ export function usePersistentState<T>(
 
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== target.current || event.newValue === null) return;
+      if (event.newValue === null) return;
+      if (isTimingKey(key)) {
+        // Accept updates to either copy, keeping the largest valid wait.
+        if (event.key !== key && event.key !== recoveryKey(key)) return;
+        const incoming = decodeSavedData(key, event.newValue, initial).value;
+        setValue((prev) => reconcileTiming(key, [incoming], Number(prev) || 0) as T);
+        return;
+      }
+      if (event.key !== target.current) return;
       const decoded = decodeSavedData(key, event.newValue, initial);
       if (decoded.recovered) { reportStorageIssue(key, null, true); return; }
       // Never replace unsaved in-memory data when a save has failed.
