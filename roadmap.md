@@ -16,3 +16,7 @@
 # Responsive layout (2026-11-06)
 - [x] Wider container on desktop; two-column Scanner and meaning mode; grid lists in Results/Catalog/Suggestions; mobile stays compact.
 - [x] Verified zero horizontal overflow and zero page errors at 390px, 768px and 1440px on all tabs; 42/42 tests and typecheck pass; not published.
+
+# DRUG URL rebrand (2026-11-06)
+- [x] Dark black/graphite theme with violet accents, Space Grotesk + JetBrains Mono, link-symbol logo, favicon, hero header with slogan and signature.
+- [x] Visuals and brand text only; logic, tests and protections untouched; 42/42 tests, typecheck and build OK; zero overflow at 390/768/1440px; not published.
