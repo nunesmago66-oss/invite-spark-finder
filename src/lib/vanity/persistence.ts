@@ -20,7 +20,7 @@ export function validateSavedData(key: string, input: unknown, initial: unknown)
     if (object(value)) for (const [c, r] of Object.entries(value)) {
       if (!code(c) || !Array.isArray(r) || (r.length !== 3 && r.length !== 4) || !["e", "n", "x"].includes(r[0]) ||
         !(r[1] === null || (number(r[1]) && Number.isInteger(r[1]) && r[1] >= 100 && r[1] <= 599)) || !number(r[2]) ||
-        (r.length === 4 && r[3] !== "d" && r[3] !== "a")) continue;
+        (r.length === 4 && !["d", "c", "t", "f", "a"].includes(r[3]))) continue;
       const status = classifyHttpStatus(r[1]);
       const rec: unknown[] = [status === "exists" ? "e" : status === "not_found" ? "n" : "x", r[1], r[2]];
       // Origin marker (Discord contacted vs app-side block) is kept only on error results.
