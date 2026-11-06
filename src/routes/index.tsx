@@ -61,9 +61,9 @@ function Index() {
   );
 
   return (
-    <div className="mx-auto min-h-screen max-w-2xl px-3 pb-[calc(env(safe-area-inset-bottom)+2rem)]">
+    <div className="mx-auto min-h-screen max-w-2xl px-3 pb-[calc(env(safe-area-inset-bottom)+2rem)] sm:max-w-3xl sm:px-6 lg:max-w-5xl xl:max-w-6xl">
       <header className="pt-5 pb-3">
-        <h1 className="text-2xl font-bold tracking-tight">Discord Vanity Finder</h1>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Discord Vanity Finder</h1>
         <p className="text-sm text-muted-foreground">
           Scanner de convites de 2 e 3 caracteres. Não encontra URLs registráveis — só indica quais
           códigos não têm convite ativo.
@@ -71,7 +71,7 @@ function Index() {
       </header>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-        <div className="sticky top-0 z-20 -mx-3 space-y-2 bg-background/95 px-3 pt-2 pb-2 backdrop-blur">
+        <div className="sticky top-0 z-20 -mx-3 space-y-2 bg-background/95 px-3 pt-2 pb-2 backdrop-blur sm:-mx-6 sm:px-6">
           <WarningBanner compact />
           <StorageNotice />
           <TabsList className="grid h-11 w-full grid-cols-4">
@@ -111,7 +111,7 @@ function Index() {
             onGoResults={() => { setResultMode("all"); setTab("resultados"); }}
           />
             </TabsContent>
-            <TabsContent value="meaning" forceMount className="space-y-4 data-[state=inactive]:hidden">
+            <TabsContent value="meaning" forceMount className="space-y-4 data-[state=inactive]:hidden lg:grid lg:grid-cols-2 lg:items-start lg:gap-4 lg:space-y-0">
               <MeaningSuggestions all={meaningPool} filters={meaningFilters} setFilters={setMeaningFilters} running={running || meaningRunning} />
               <ScannerTab {...timing} meaningMode candidateCodes={meaningCodes} blocked={running} config={meaningConfig} setConfig={setMeaningConfig} selected={[]} results={meaningResults} setResults={setMeaningResults} running={meaningRunning} setRunning={setMeaningRunning} onGoCatalog={() => setTab("catalogo")} onGoResults={() => { setResultMode("meaning"); setTab("resultados"); }} />
             </TabsContent>
