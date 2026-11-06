@@ -183,8 +183,9 @@ export function ScannerTab({
       const raw = localStorage.getItem(`${key}:recovery:v1`) ?? localStorage.getItem(key);
       return raw === null ? fallback : decodeSavedData(key, raw, fallback).value;
     };
-    const savedCooldown = Number(read("dvf:cooldown-until", cooldownUntil));
-    const savedLast = Number(read("dvf:last-check-at", lastCheckAt));
+    // Largest valid wait across memory, the original key and the recovery copy.
+    const savedCooldown = readSavedTiming(localStorage, "dvf:cooldown-until", cooldownUntil);
+    const savedLast = readSavedTiming(localStorage, "dvf:last-check-at", lastCheckAt);
     if (savedCooldown > Date.now()) {
       setCooldownUntil(savedCooldown); setNow(Date.now()); return;
     }
@@ -238,11 +239,19 @@ export function ScannerTab({
     switch (outcome.reason) {
       case "rate_limited": {
         const secs = Math.ceil(Math.max(outcome.retryAfterSeconds ?? 60, MIN_INTERVAL_MS / 1000));
-        setCooldownUntil(Date.now() + secs * 1000);
+        const until = Date.now() + secs * 1000;
+        // Never shorten a longer wait that is already active.
+        setCooldownUntil((prev) => Math.max(prev, until));
         setNow(Date.now());
+        const origin =
+          outcome.rateLimitSource === "discord"
+            ? "O Discord retornou limite de taxa (HTTP 429)."
+            : outcome.rateLimitSource === "app_block"
+              ? "Bloqueio preventivo do app: um limite de taxa do Discord recebido há pouco ainda está ativo, por isso nenhuma consulta foi enviada ao Discord."
+              : "Limite de taxa (HTTP 429) — não foi possível confirmar se veio do Discord ou de um bloqueio preventivo do app.";
         setMessage({
           tone: "error",
-          text: `O Discord retornou limite de taxa (HTTP 429). A varredura foi pausada e não será retomada sozinha. Aguarde ${secs}s e toque em “Retomar”. O app não tenta contornar esse limite.`,
+          text: `${origin} A varredura foi pausada e não será retomada sozinha. Aguarde ${secs}s e toque em “Retomar”. O app não tenta contornar esse limite.`,
         });
         break;
       }
