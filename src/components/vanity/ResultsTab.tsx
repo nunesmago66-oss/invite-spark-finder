@@ -106,7 +106,7 @@ export function ResultsTab({ results, setResults, entries, running }: Props) {
         testados · {counts.e} existentes · {counts.n} não encontrados · {counts.x} erros
       </p>
 
-      <section className="space-y-3 rounded-lg border bg-card p-3" aria-label="Filtros">
+      <section className="space-y-3 rounded-lg border bg-card p-3 sm:p-4" aria-label="Filtros">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por status">
           {FILTERS.map((f) => (
             <Button
@@ -125,7 +125,7 @@ export function ResultsTab({ results, setResults, entries, running }: Props) {
             </Button>
           ))}
         </div>
-        <div className="grid grid-cols-[1fr_7rem] gap-2">
+        <div className="grid grid-cols-[1fr_7rem] gap-2 sm:grid-cols-[1fr_10rem]">
           <div className="relative">
             <Search
               className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
@@ -188,7 +188,7 @@ export function ResultsTab({ results, setResults, entries, running }: Props) {
         <EmptyState icon={Search} title="Nenhum resultado com esses filtros" />
       ) : (
         <>
-          <ul className="space-y-2">
+          <ul className="space-y-2 sm:grid sm:grid-cols-2 sm:gap-3 sm:space-y-0 xl:grid-cols-3">
             {list.slice(0, limit).map(([code, r]) => (
               <li key={code} className="rounded-lg border bg-card p-3">
                 <div className="flex flex-wrap items-center gap-2">

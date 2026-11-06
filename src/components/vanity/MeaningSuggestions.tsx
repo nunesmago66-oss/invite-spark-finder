@@ -35,7 +35,7 @@ export function MeaningSuggestions({ all, filters, setFilters, running }: {
     <h2 className="text-lg font-semibold">Busca por URLs com significado</h2>
     <fieldset disabled={running} className="space-y-3 disabled:opacity-60">
       <div className="relative"><Search aria-hidden className="absolute left-3 top-3 size-4 text-muted-foreground" /><Input className="pl-9" type="search" aria-label="Buscar sugestões" placeholder="Código, significado ou idioma" value={filters.query} onChange={e => update("query", e.target.value)} /></div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div><Label htmlFor="m-length">Tamanho</Label><NativeSelect id="m-length" value={filters.length} onChange={e => update("length", e.target.value)}><option value="all">2 e 3 caracteres</option><option value="2">2 caracteres</option><option value="3">3 caracteres</option></NativeSelect></div>
         <div><Label htmlFor="m-family">Origem</Label><NativeSelect id="m-family" value={filters.family} onChange={e => update("family", e.target.value)}><option value="all">Todas</option>{["palavra", "abreviação", "nome", "fonético"].map(v => <option key={v}>{v}</option>)}</NativeSelect></div>
         <div><Label htmlFor="m-language">Idioma</Label><NativeSelect id="m-language" value={filters.language} onChange={e => update("language", e.target.value)}><option value="all">Todos</option>{languages.map(v => <option key={v}>{v}</option>)}</NativeSelect></div>
@@ -48,7 +48,7 @@ export function MeaningSuggestions({ all, filters, setFilters, running }: {
       </div>
     </fieldset>
     <Button variant="ghost" aria-expanded={expanded} onClick={() => setExpanded(v => !v)}>{expanded ? <ChevronUp aria-hidden /> : <ChevronDown aria-hidden />}{expanded ? "Ocultar sugestões" : `Ver sugestões (${candidates.length})`}</Button>
-    {expanded && <ul className="space-y-2">{candidates.slice(0, show).map(c => <li key={c.code} className="rounded-md border bg-card p-3">
+    {expanded && <ul className="space-y-2 sm:grid sm:grid-cols-2 sm:gap-2 sm:space-y-0">{candidates.slice(0, show).map(c => <li key={c.code} className="rounded-md border bg-card p-3">
       <div className="flex flex-wrap items-center gap-2"><strong className="font-mono text-lg">{c.code}</strong><Badge variant="outline">{c.family}</Badge><span className="ml-auto text-xs text-muted-foreground">Relevância {c.relevance}/100</span></div>
       <p className="mt-1 text-sm break-words">{c.meaning}</p><p className="mt-1 text-xs text-muted-foreground">Pronúncia {c.pronunciation}/100 · estética subjetiva {c.aesthetics}/100</p>
     </li>)}</ul>}
