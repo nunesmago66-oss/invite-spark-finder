@@ -93,7 +93,7 @@ describe("runVerificationQueue", () => {
       batchLimit: 30, intervalMs: 3000,
       check,
     });
-    expect(out).toEqual({ reason: "rate_limited", checked: 2, retryAfterSeconds: 12 });
+    expect(out).toEqual({ reason: "rate_limited", checked: 2, retryAfterSeconds: 12, rateLimitSource: "unknown" });
     expect(check).toHaveBeenCalledTimes(2);
   });
 
