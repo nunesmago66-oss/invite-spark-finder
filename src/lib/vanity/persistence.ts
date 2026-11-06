@@ -18,10 +18,14 @@ export function validateSavedData(key: string, input: unknown, initial: unknown)
   if (key.includes("results")) {
     const out: Record<string, unknown> = {};
     if (object(value)) for (const [c, r] of Object.entries(value)) {
-      if (!code(c) || !Array.isArray(r) || r.length !== 3 || !["e", "n", "x"].includes(r[0]) ||
-        !(r[1] === null || (number(r[1]) && Number.isInteger(r[1]) && r[1] >= 100 && r[1] <= 599)) || !number(r[2])) continue;
+      if (!code(c) || !Array.isArray(r) || (r.length !== 3 && r.length !== 4) || !["e", "n", "x"].includes(r[0]) ||
+        !(r[1] === null || (number(r[1]) && Number.isInteger(r[1]) && r[1] >= 100 && r[1] <= 599)) || !number(r[2]) ||
+        (r.length === 4 && r[3] !== "d" && r[3] !== "a")) continue;
       const status = classifyHttpStatus(r[1]);
-      out[c] = [status === "exists" ? "e" : status === "not_found" ? "n" : "x", r[1], r[2]];
+      const rec: unknown[] = [status === "exists" ? "e" : status === "not_found" ? "n" : "x", r[1], r[2]];
+      // Origin marker (Discord contacted vs app-side block) is kept only on error results.
+      if (r.length === 4 && status === "inconclusive") rec.push(r[3]);
+      out[c] = rec;
     }
     result = out;
   } else if (key.includes("catalog")) {
@@ -53,6 +57,41 @@ export function validateSavedData(key: string, input: unknown, initial: unknown)
     };
   } else if (key === "dvf:cooldown-until" || key === "dvf:last-check-at") result = number(value) ? value : initial;
   return { value: result, recovered: JSON.stringify(value) !== JSON.stringify(result) };
+}
+
+export const TIMING_KEYS = ["dvf:cooldown-until", "dvf:last-check-at"] as const;
+export const isTimingKey = (key: string) => (TIMING_KEYS as readonly string[]).includes(key);
+/** A cooldown further ahead than this is treated as corrupt, not as a real wait. */
+export const MAX_COOLDOWN_AHEAD_MS = 24 * 60 * 60 * 1000;
+/** A "last check" in the future beyond normal clock skew is treated as corrupt. */
+export const MAX_LAST_CHECK_SKEW_MS = 60 * 1000;
+
+/** Valid timing value for `key` at `now` (finite, non-negative, not absurdly far ahead). */
+export function isValidTiming(key: string, v: unknown, now: number): v is number {
+  if (!number(v)) return false;
+  const ahead = key === "dvf:cooldown-until" ? MAX_COOLDOWN_AHEAD_MS : MAX_LAST_CHECK_SKEW_MS;
+  return v <= now + ahead;
+}
+
+/**
+ * Reconciles cooldown / last-check values from memory, the original key and the
+ * recovery sidecar: the largest valid value always wins, so a recovered 0 can
+ * never shorten a wait that is still active.
+ */
+export function reconcileTiming(key: string, values: unknown[], fallback = 0, now = Date.now()): number {
+  let best = isValidTiming(key, fallback, now) ? fallback : 0;
+  for (const v of values) if (isValidTiming(key, v, now) && v > best) best = v;
+  return best;
+}
+
+/** Reads a timing key from both the original and the recovery sidecar and reconciles them. */
+export function readSavedTiming(store: Pick<Storage, "getItem">, key: string, fallback = 0, now = Date.now()): number {
+  const values: unknown[] = [];
+  for (const k of [key, recoveryKey(key)]) {
+    const raw = store.getItem(k);
+    if (raw !== null) values.push(decodeSavedData(key, raw, 0).value);
+  }
+  return reconcileTiming(key, values, fallback, now);
 }
 
 export function decodeSavedData(key: string, raw: string, initial: unknown): Recovery {
