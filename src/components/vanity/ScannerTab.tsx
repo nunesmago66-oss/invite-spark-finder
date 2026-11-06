@@ -337,7 +337,7 @@ export function ScannerTab({
               >
                 {INTERVAL_OPTIONS_MS.map((ms) => (
                   <option key={ms} value={ms}>
-                    1 a cada {ms / 1000}s{ms === MIN_INTERVAL_MS ? " (mínimo)" : ""}
+                    A cada {ms / 1000}s{ms === MIN_INTERVAL_MS ? " (mín.)" : ""}
                   </option>
                 ))}
               </NativeSelect>
