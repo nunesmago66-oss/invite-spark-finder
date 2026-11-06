@@ -20,3 +20,8 @@
 # DRUG URL rebrand (2026-11-06)
 - [x] Dark black/graphite theme with violet accents, Space Grotesk + JetBrains Mono, link-symbol logo, favicon, hero header with slogan and signature.
 - [x] Visuals and brand text only; logic, tests and protections untouched; 42/42 tests, typecheck and build OK; zero overflow at 390/768/1440px; not published.
+
+# Rate-limit origin and cooldown recovery (2026-11-06)
+- [x] Distinguish a Discord 429 from the app's preventive block in messages, saved results and CSV (legacy results still load).
+- [x] Cooldown/last-check reconcile memory, original and recovery copy by the largest valid value.
+- [x] 54/54 tests; simulated phone-size runs (no real Discord calls); not published.
