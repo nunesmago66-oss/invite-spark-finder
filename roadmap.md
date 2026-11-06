@@ -25,3 +25,9 @@
 - [x] Distinguish a Discord 429 from the app's preventive block in messages, saved results and CSV (legacy results still load).
 - [x] Cooldown/last-check reconcile memory, original and recovery copy by the largest valid value.
 - [x] 54/54 tests; simulated phone-size runs (no real Discord calls); not published.
+
+# Full error audit (2026-11-06)
+- [x] 429 evidence (Discord API vs Cloudflare edge, scope, global), 5xx/timeout/connection kinds, Discord's reset-after wait, browser-side deadline per check.
+- [x] 68/68 tests; simulated phone runs: Cloudflare 429 + 30 s cooldown across reload, 500s, stuck request, meaning mode + CSV, two tabs, reload mid-scan.
+- [ ] Confirm the real 429 layer on the hosted site (needs one scan by the user in the preview; the hosted preview requires sign-in, so it could not be called from here).
+- [ ] Dedicated outbound address (e.g. Oracle Always Free VM) — waits on user approval and an account only the user can create.
