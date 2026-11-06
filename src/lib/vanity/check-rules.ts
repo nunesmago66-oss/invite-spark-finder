@@ -30,17 +30,46 @@ export interface CheckResult {
    * null/undefined = unknown (e.g. the check function did not reply).
    */
   discordQueried?: boolean | null;
+  /**
+   * Which layer answered a 429, from response evidence: "discord_api" (JSON
+   * with retry_after / X-RateLimit-* headers) or "cloudflare_edge" (HTML or
+   * error 1015 page from the Cloudflare protection in front of discord.com).
+   */
+  limitLayer?: LimitLayer | null;
+  /** X-RateLimit-Scope ("user" | "global" | "shared") when Discord sent it. */
+  limitScope?: string | null;
+  /** Discord's "global" flag on a 429 (header or JSON body). */
+  limitGlobal?: boolean | null;
+  /**
+   * Seconds Discord asked us to wait before the NEXT request even though this
+   * one succeeded (X-RateLimit-Remaining: 0 + X-RateLimit-Reset-After).
+   */
+  nextAllowedInSeconds?: number | null;
+  /** Kind of failure when no valid 200/404 was obtained. */
+  errorKind?: ErrorKind | null;
 }
 
-/** Where a rate-limit stop came from, so a preventive block is never shown as a Discord 429. */
-export type RateLimitSource = "discord" | "app_block" | "unknown";
+export type LimitLayer = "discord_api" | "cloudflare_edge";
+export type ErrorKind = "rate_limit" | "server_error" | "unexpected" | "timeout" | "network" | "app_block" | "app_throttle" | "invalid_reply";
+const LIMIT_LAYERS: readonly string[] = ["discord_api", "cloudflare_edge"];
+const ERROR_KINDS: readonly string[] = ["rate_limit", "server_error", "unexpected", "timeout", "network", "app_block", "app_throttle", "invalid_reply"];
 
-export function rateLimitSourceOf(r: Pick<CheckResult, "httpStatus" | "discordQueried">): RateLimitSource | null {
+/** Where a rate-limit stop came from, so a preventive block is never shown as a Discord 429. */
+export type RateLimitSource = "discord" | "cloudflare_edge" | "app_block" | "unknown";
+
+export function rateLimitSourceOf(
+  r: Pick<CheckResult, "httpStatus" | "discordQueried"> & { limitLayer?: LimitLayer | null },
+): RateLimitSource | null {
   if (r.httpStatus !== 429) return null;
-  if (r.discordQueried === true) return "discord";
+  if (r.discordQueried === true) return r.limitLayer === "cloudflare_edge" ? "cloudflare_edge" : "discord";
   if (r.discordQueried === false) return "app_block";
   return "unknown";
 }
+
+/** Largest wait we accept from a single header; longer values are treated as malformed. */
+export const MAX_SERVER_WAIT_SECONDS = 24 * 60 * 60;
+const finiteWait = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= MAX_SERVER_WAIT_SECONDS ? v : null;
 
 /** Vanity codes: lowercase letters, digits and hyphen, 2–3 characters here. */
 const CODE_RE = /^[a-z0-9-]{2,3}$/;
@@ -56,7 +85,11 @@ export function isValidCode(code: string): boolean {
   return CODE_RE.test(code) && !code.startsWith("-") && !code.endsWith("-");
 }
 
-/** 200 → exists, 404 → not found, everything else (incl. no response) → error/rate limit. */
+/**
+ * 200 → exists, 404 → not found (never "available"), everything else —
+ * 429, 5xx, other codes, timeout, connection failure — → error/rate limit,
+ * so a communication failure is never shown as a valid result.
+ */
 export function classifyHttpStatus(httpStatus: number | null): CheckStatus {
   if (httpStatus === 200) return "exists";
   if (httpStatus === 404) return "not_found";
@@ -79,23 +112,28 @@ export function normalizeCheckResult(code: string, raw: unknown): CheckResult {
       reason: "Resposta inválida da função de verificação.",
       checkedAt: new Date().toISOString(),
       discordQueried: null,
+      errorKind: "invalid_reply",
     };
   }
   const status = classifyHttpStatus(http);
+  const layer = typeof r.limitLayer === "string" && LIMIT_LAYERS.includes(r.limitLayer) ? (r.limitLayer as LimitLayer) : null;
+  const kind = typeof r.errorKind === "string" && ERROR_KINDS.includes(r.errorKind) ? (r.errorKind as ErrorKind) : null;
   return {
     code,
     // Re-derive status from the HTTP code so a 404 can never be shown as anything else.
     status: classifyHttpStatus(http),
     httpStatus: http,
-    retryAfterSeconds:
-      typeof r.retryAfterSeconds === "number" && Number.isFinite(r.retryAfterSeconds)
-        ? r.retryAfterSeconds
-        : null,
+    retryAfterSeconds: finiteWait(r.retryAfterSeconds),
     reason: typeof r.reason === "string" ? r.reason : "",
     checkedAt: typeof r.checkedAt === "string" ? r.checkedAt : new Date().toISOString(),
     // 200/404 can only come from Discord; otherwise trust only an explicit boolean.
     discordQueried:
       status !== "inconclusive" ? true : typeof r.discordQueried === "boolean" ? r.discordQueried : null,
+    limitLayer: http === 429 ? layer : null,
+    limitScope: http === 429 && typeof r.limitScope === "string" ? r.limitScope.slice(0, 20) : null,
+    limitGlobal: http === 429 && typeof r.limitGlobal === "boolean" ? r.limitGlobal : null,
+    nextAllowedInSeconds: status !== "inconclusive" ? finiteWait(r.nextAllowedInSeconds) : null,
+    errorKind: status === "inconclusive" ? (http === 429 && kind !== "app_block" ? "rate_limit" : kind) : null,
   };
 }
 
@@ -149,6 +187,7 @@ export async function runVerificationQueue(opts: QueueOptions): Promise<QueueOut
   const maxErrors = opts.maxConsecutiveErrors ?? MAX_CONSECUTIVE_ERRORS;
   let checked = 0;
   let consecutiveErrors = 0;
+  let extraWaitMs = 0;
   const out = (
     reason: QueueStopReason,
     retryAfterSeconds: number | null = null,
@@ -163,7 +202,9 @@ export async function runVerificationQueue(opts: QueueOptions): Promise<QueueOut
   for (let i = 0; i < codes.length; i++) {
     if (shouldStop()) return out("stopped");
     if (checked >= opts.batchLimit) return out("batch");
-    const delay = i === 0 ? Math.max(0, opts.initialDelayMs ?? 0) : interval;
+    // Never faster than the interval; slower when Discord said its bucket is empty.
+    const delay = i === 0 ? Math.max(0, opts.initialDelayMs ?? 0) : Math.max(interval, extraWaitMs);
+    extraWaitMs = 0;
     if (delay > 0) {
       await sleep(delay);
       if (shouldStop()) return out("stopped");
@@ -175,6 +216,7 @@ export async function runVerificationQueue(opts: QueueOptions): Promise<QueueOut
     opts.onResult?.(result, i);
     if (result.httpStatus === 429)
       return out("rate_limited", result.retryAfterSeconds, rateLimitSourceOf(result));
+    if (result.nextAllowedInSeconds) extraWaitMs = Math.ceil(result.nextAllowedInSeconds * 1000);
     if (result.status === "inconclusive") {
       consecutiveErrors++;
       if (consecutiveErrors >= maxErrors) return out("errors");
