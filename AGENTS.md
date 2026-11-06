@@ -37,3 +37,5 @@ use the editor.
 - User data (catalog, favorites, selection, scan results/progress) is stored in the browser only (localStorage/sessionStorage); no accounts or backend database.
 - Meaning discovery uses a deterministic multilingual dictionary and phonetic generator in `meaning-generator.ts`; invented sounds remain separate from dictionary meanings to prevent fabricated translations.
 - Exhaustive and meaning scanners have separate persistent configs/results and use the same ScannerTab/verification queue; shared cooldown and last-request time plus mutual exclusion preserve rate limits across modes.
+- Persist browser state through versioned validation and non-destructive recovery sidecars; surface save failures and retain unsaved values for retry/backup to avoid silent data loss.
+- Hold a Web Lock or an atomic IndexedDB readwrite transaction for the entire verification queue; fail closed if neither works, and reread shared timing under the lock to prevent cross-tab overlap.

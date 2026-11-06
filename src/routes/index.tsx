@@ -12,6 +12,7 @@ import { WarningBanner } from "@/components/vanity/shared";
 import { DEFAULT_CATALOG, type CatalogEntry } from "@/lib/vanity/catalog";
 import { DEFAULT_SCANNER_CONFIG, type ResultsMap, type ScannerConfig } from "@/lib/vanity/scanner";
 import { usePersistentState } from "@/lib/vanity/use-persistent-state";
+import { StorageNotice } from "@/components/vanity/StorageNotice";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -72,6 +73,7 @@ function Index() {
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
         <div className="sticky top-0 z-20 -mx-3 space-y-2 bg-background/95 px-3 pt-2 pb-2 backdrop-blur">
           <WarningBanner compact />
+          <StorageNotice />
           <TabsList className="grid h-11 w-full grid-cols-4">
             <TabsTrigger value="scanner" className="h-9 px-1 text-xs sm:text-sm">
               Scanner{running || meaningRunning ? " ●" : ""}

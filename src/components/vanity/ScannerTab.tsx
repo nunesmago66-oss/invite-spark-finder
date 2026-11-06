@@ -30,6 +30,8 @@ import {
   type ScannerConfig,
 } from "@/lib/vanity/scanner";
 import { useWakeLock } from "@/lib/vanity/use-wake-lock";
+import { acquireScanLock, type ScanLock } from "@/lib/vanity/scan-lock";
+import { decodeSavedData, hasStorageFailure, subscribeStorage } from "@/lib/vanity/persistence";
 import { cn } from "@/lib/utils";
 
 import { EmptyState, NativeSelect, StatusBadge, WarningBanner } from "./shared";
@@ -82,11 +84,18 @@ export function ScannerTab({
   const stopRef = useRef(false);
   const pauseReasonRef = useRef<"user" | "hidden" | null>(null);
   const lastCheckRef = useRef(0);
+  const lockRef = useRef<ScanLock | null>(null);
+  const acquiringRef = useRef(false);
   lastCheckRef.current = Math.max(lastCheckRef.current, lastCheckAt);
 
   const wakeLockSupported = useWakeLock(running && config.keepAwake);
   const interval = clampInterval(config.intervalMs);
   const cooling = cooldownUntil > now;
+
+  useEffect(() => subscribeStorage(() => {
+    if (hasStorageFailure()) stopRef.current = true;
+  }), []);
+  useEffect(() => () => { stopRef.current = true; }, []);
 
   useEffect(() => {
     if (!running && !cooling) return;
@@ -149,9 +158,40 @@ export function ScannerTab({
   }
 
   async function start() {
-    if (running || cooling || blocked) return;
-    const queue = candidates.filter((c) => !results[c]);
-    if (queue.length === 0) return;
+    if (running || cooling || blocked || acquiringRef.current) return;
+    if (hasStorageFailure()) {
+      setMessage({ tone: "error", text: "A verificação está pausada porque não foi possível salvar ou ler o progresso. Baixe uma cópia e tente salvar novamente." });
+      return;
+    }
+    acquiringRef.current = true;
+    let lock: ScanLock | null;
+    try { lock = await acquireScanLock(); }
+    catch {
+      acquiringRef.current = false;
+      setMessage({ tone: "error", text: "Este navegador não conseguiu proteger a execução entre abas. A verificação não foi iniciada; catálogo, sugestões e exportações continuam disponíveis." });
+      return;
+    }
+    acquiringRef.current = false;
+    if (!lock) {
+      setMessage({ tone: "info", text: "Outra aba está executando uma verificação. Pause ou aguarde a conclusão nessa aba antes de iniciar aqui." });
+      return;
+    }
+    lockRef.current = lock;
+    try {
+    // Re-read under the lock: this tab may have been open while another tab scanned.
+    const read = (key: string, fallback: unknown) => {
+      const raw = localStorage.getItem(`${key}:recovery:v1`) ?? localStorage.getItem(key);
+      return raw === null ? fallback : decodeSavedData(key, raw, fallback).value;
+    };
+    const savedCooldown = Number(read("dvf:cooldown-until", cooldownUntil));
+    const savedLast = Number(read("dvf:last-check-at", lastCheckAt));
+    if (savedCooldown > Date.now()) {
+      setCooldownUntil(savedCooldown); setNow(Date.now()); return;
+    }
+    lastCheckRef.current = Math.max(lastCheckRef.current, savedLast);
+    const savedResults = read(meaningMode ? "dvf:meaning-results:v1" : "dvf:results:v1", results) as ResultsMap;
+    const queue = candidates.filter((c) => !results[c] && !savedResults[c]);
+    if (queue.length === 0 || hasStorageFailure() || document.visibilityState === "hidden") return;
     stopRef.current = false;
     pauseReasonRef.current = null;
     setRunning(true);
@@ -163,13 +203,14 @@ export function ScannerTab({
       intervalMs: interval,
       initialDelayMs: lastCheckRef.current + interval - Date.now(),
       sleep,
-      shouldStop: () => stopRef.current,
+      shouldStop: () => stopRef.current || hasStorageFailure() || !lockRef.current?.held(),
       onStart: (code) => {
         setCurrent(code);
         lastCheckRef.current = Date.now();
         setLastCheckAt(lastCheckRef.current);
       },
       check: async (code) => {
+        if (!lockRef.current?.held()) throw new Error("Bloqueio entre abas perdido");
         try {
           return normalizeCheckResult(code, await checkFn({ data: { code } }));
         } catch (err) {
@@ -221,7 +262,9 @@ export function ScannerTab({
         setMessage({
           tone: "info",
           text:
-            pauseReasonRef.current === "hidden"
+            hasStorageFailure()
+              ? "Varredura pausada: o navegador não conseguiu salvar o progresso. Os novos resultados permanecem nesta aba. Baixe uma cópia e tente salvar novamente antes de recarregar."
+              : pauseReasonRef.current === "hidden"
               ? "Pausado porque o Safari saiu da tela (aba trocada ou tela bloqueada). O progresso foi salvo; toque em “Retomar”."
               : "Varredura pausada. O progresso foi salvo.",
         });
@@ -230,6 +273,12 @@ export function ScannerTab({
         toast.success("Todos os candidatos desta configuração foram testados");
         setMessage({ tone: "info", text: "Varredura concluída para esta configuração." });
         break;
+    }
+    } catch {
+      setMessage({ tone: "error", text: "A verificação foi interrompida com segurança. Confira o aviso de armazenamento e tente novamente; nenhum dado salvo foi apagado." });
+    } finally {
+      setRunning(false); setCurrent(null); setNextAt(0);
+      lock.release(); lockRef.current = null;
     }
   }
 
