@@ -89,8 +89,9 @@ export async function runVerificationQueue(opts: QueueOptions): Promise<QueueOut
       await sleep(delay);
       if (shouldStop()) return { reason: "stopped", checked, retryAfterSeconds: null };
     }
-    opts.onStart?.(codes[i], i);
-    const result = await check(codes[i]);
+    const code = codes[i] as string;
+    opts.onStart?.(code, i);
+    const result = await check(code);
     checked++;
     opts.onResult?.(result, i);
     if (result.httpStatus === 429) {
