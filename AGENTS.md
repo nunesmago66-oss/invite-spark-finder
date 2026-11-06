@@ -32,5 +32,6 @@ use the editor.
 ## Project rules
 
 - Invite checks run only through the `checkInvite` server function (`src/lib/vanity/`); the browser never calls Discord directly, so CORS and rate-limit handling stay in one place.
-- Verification rules (status classification, min interval, session cap, stop-on-429 queue) live in `src/lib/vanity/check-rules.ts` with tests beside it; change them there, not in components.
-- User data (catalog, favorites, selection, history) is stored in the browser only (localStorage/sessionStorage); no accounts or backend database.
+- Verification rules (status classification, min interval, batch auto-pause, consecutive-error pause, stop-on-429 queue) live in `src/lib/vanity/check-rules.ts` with tests beside it; change them there, not in components.
+- Scanner candidate generation and compact result storage live in `src/lib/vanity/scanner.ts` so ~48k results fit in localStorage and survive reloads.
+- User data (catalog, favorites, selection, scan results/progress) is stored in the browser only (localStorage/sessionStorage); no accounts or backend database.

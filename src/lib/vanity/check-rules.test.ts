@@ -95,7 +95,7 @@ describe("runVerificationQueue", () => {
     expect(check).toHaveBeenCalledTimes(2);
   });
 
-  it("never exceeds the remaining session budget", async () => {
+  it("auto-pauses after the batch size", async () => {
     const check = vi.fn(async (c: string) => res(c, 404));
     const out = await runVerificationQueue({
       ...base,
