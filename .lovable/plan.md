@@ -72,17 +72,12 @@ Pisos a 3 s sem pausas: significado 3h01; letras 15h12; alfanumérico 39h57. A 5
 
 US$ 0 cobre externo Free sem domínio/add-ons, não criação Lovable/custos atuais. Conta paga/outros consumos/mudança de oferta bloqueiam ativação; não habilitar upgrades.
 
-## 6. Segurança e migração não destrutiva
-Sem tokens **Discord**, proxies de evasão, rotação de IP ou login Discord. API de controle precisa de autorização própria para impedir abuso da quota/cancelamentos. Proposta inicial: operador privado, sessão segura e segredo interno; nunca segredo Cloudflare no navegador. Se “sem tokens” também excluir credenciais internas, bloquear até definir proteção compatível. Nada público irrestrito.
+## 6. Segurança e migração
+Sem token/login Discord, proxy de evasão ou rotação de IP. Controle requer autorização própria contra abuso: operador privado, sessão segura/segredo interno, nunca segredo Cloudflare no navegador. Se “sem tokens” excluir credenciais internas também, bloquear até definir proteção compatível.
 
-1. Migração explícita, não no carregamento. Baixar backup, manter todas as chaves `dvf:*`, originais e sidecars `:recovery:v1`.
-2. Validar mapas/configurações/filtros com regras existentes; HTTP prevalece. Preservar catálogo/favoritos/seleção locais, sem upload por padrão.
-3. Copiar somente dados autorizados em lotes com hash/recibo idempotente e cotas reservadas. Importar jobs pausados; comparar códigos/contagem/configuração antes de Iniciar; cooldown pelo maior prazo.
-4. Nova chave local versionada para IDs/revisões remotos, sem repurpose de mapas antigos. Merge incremental sem sobrescrever favoritos, edições ou exclusões deliberadas.
-5. Sem espaço local: conservar remoto, mostrar aviso/exportação paginada; não afirmar salvamento local antes de confirmar.
-6. Rollback: pausar remoto, exportar/reconciliar e só então reativar fila local; sem sobreposição/apagar originais.
+Migração explícita: backup; preservar todas as chaves dvf:* e sidecars :recovery:v1; validar mapas/config/filtros com regras atuais; HTTP prevalece. Catálogo/favoritos/seleção ficam locais, sem upload padrão. Copiar só dados autorizados, por lotes com recibo/hash/cota; importar pausado, conferir códigos/contagens/config e cooldown pelo maior prazo. Nova chave local versionada para IDs/revisões; merge sem sobrescrever edições/exclusões/originais.
 
-Recuperação no mesmo dispositivo depende de ID/autorização persistidos; outro dispositivo ou cookies apagados requer recuperação segura, não contas/sincronização pessoal prometidas implicitamente.
+Sem espaço local, manter remoto e oferecer aviso/exportação paginada; confirmar antes de afirmar salvamento local. Rollback: pausar remoto, exportar/reconciliar, então reativar local sem sobreposição. Não apagar dados. Recuperação depende de ID/autorização; cookies apagados/outro dispositivo exigem recuperação segura, não contas implícitas.
 
 ## 7. Arquivos e configuração futura
 Serviço separado: api, coordinator, scheduler, discord-client, quota-budget, contracts, candidate-manifest e auth (`.ts`); schema.sql/migrations; testes/manual. Configuração: Free, DO SQLite/migração inicial, ID único, watchdog UTC, origens/autorização, orçamento/retenção. Nenhuma infraestrutura de implantação gerada agora.
